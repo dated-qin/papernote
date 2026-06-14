@@ -5,3 +5,7 @@ release/
 .env
 .DS_Store
 Thumbs.db
+docs/
+prompts/
+*.jpg
+*.png
