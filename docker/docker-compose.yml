@@ -1,0 +1,50 @@
+# ============================================
+# 纸条 PaperNote — Docker Compose 开发环境
+# 服务：PostgreSQL 15 + Redis 7
+# ============================================
+
+version: "3.9"
+
+services:
+  # ---------- PostgreSQL 15 ----------
+  postgres:
+    image: postgres:15-alpine
+    container_name: papernote-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: papernote
+      POSTGRES_USER: papernote
+      POSTGRES_PASSWORD: papernote_dev
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../backend/migrations:/docker-entrypoint-initdb.d  # 首次启动自动执行迁移
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U papernote -d papernote"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- Redis 7 ----------
+  redis:
+    image: redis:7-alpine
+    container_name: papernote-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass papernote_redis_dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
