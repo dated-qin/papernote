@@ -194,10 +194,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
             void navigator.clipboard.writeText(message.content);
             setShowActionsMenu(false);
           }}
-          onQuote={() => {
-            setQuote(message.conversationId, message.id);
-            setShowActionsMenu(false);
-          }}
           onForward={(targetConvId: string) => {
             forwardMessage(message.conversationId, message.id, targetConvId);
             setShowActionsMenu(false);
@@ -306,7 +302,6 @@ interface MessageActionsMenuProps {
   conversationId: string;
   conversations: import('../../types').Conversation[];
   onCopy: () => void;
-  onQuote: () => void;
   onForward: (targetConvId: string) => void;
   onRecall: () => void;
   onDelete: () => void;
@@ -319,7 +314,6 @@ const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
   conversationId,
   conversations,
   onCopy,
-  onQuote,
   onForward,
   onRecall,
   onDelete,
@@ -339,15 +333,16 @@ const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
   }, [onClose]);
 
   const menuStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: -32,
-    right: 0,
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
     backgroundColor: 'var(--bg-primary)',
     border: '1px solid var(--border-default)',
     borderRadius: 'var(--radius-md)',
     boxShadow: 'var(--shadow-lg)',
     zIndex: 30,
-    minWidth: 140,
+    minWidth: 160,
     padding: '4px 0',
     overflow: 'hidden',
   };
@@ -392,15 +387,9 @@ const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
-            📋 复制文本
+            📋 复制
           </button>
         )}
-        <button onClick={onQuote} style={menuItemStyle}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-        >
-          ↩ 引用回复
-        </button>
         {message.type === 'text' && forwardTargets.length > 0 && (
           <button onClick={() => setShowForwardList(true)} style={menuItemStyle}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
@@ -410,23 +399,21 @@ const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
           </button>
         )}
         {canRecall && (
-          <>
-            <div style={dividerStyle} />
-            <button onClick={onRecall} style={{ ...menuItemStyle, color: 'var(--accent-red)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-            >
-              ↩ 撤回
-            </button>
-          </>
+          <button onClick={onRecall} style={{ ...menuItemStyle, color: 'var(--accent-red)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+          >
+            ↩ 撤回
+          </button>
         )}
-        <div style={dividerStyle} />
-        <button onClick={onDelete} style={{ ...menuItemStyle, color: 'var(--text-muted)' }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-        >
-          🗑 删除（仅本地）
-        </button>
+        {isOwn && (
+          <button onClick={onDelete} style={{ ...menuItemStyle, color: 'var(--text-muted)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+          >
+            🗑 删除
+          </button>
+        )}
       </div>
     </>
   );
@@ -473,8 +460,3 @@ const backdropStyle: React.CSSProperties = {
   zIndex: 29,
 };
 
-const dividerStyle: React.CSSProperties = {
-  height: 1,
-  backgroundColor: 'var(--border-default)',
-  margin: '4px 0',
-};
