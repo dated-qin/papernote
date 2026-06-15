@@ -31,11 +31,14 @@ export const ConversationSidebar: React.FC = () => {
   const togglePin = useChatStore((s) => s.togglePin);
   const toggleMute = useChatStore((s) => s.toggleMute);
   const deleteConversationLocally = useChatStore((s) => s.deleteConversationLocally);
+  const friends = useChatStore((s) => s.friends);
+  const fetchFriends = useChatStore((s) => s.fetchFriends);
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [showChannelDialog, setShowChannelDialog] = useState(false);
   const [channelName, setChannelName] = useState('');
+  const [channelMembers, setChannelMembers] = useState<string[]>([]);
   const [channelError, setChannelError] = useState('');
   const [creatingChannel, setCreatingChannel] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -52,8 +55,10 @@ export const ConversationSidebar: React.FC = () => {
   const openChannelDialog = () => {
     setShowCreateMenu(false);
     setChannelName('');
+    setChannelMembers([]);
     setChannelError('');
     setShowChannelDialog(true);
+    void fetchFriends(); // 刷新好友列表供选择
   };
 
   const submitChannel = async () => {
@@ -66,7 +71,7 @@ export const ConversationSidebar: React.FC = () => {
     setCreatingChannel(true);
     setChannelError('');
     try {
-      const convId = await createChannel(name, []);
+      const convId = await createChannel(name, channelMembers);
       setActiveConversation(convId);
       setShowChannelDialog(false);
     } catch {
@@ -294,6 +299,50 @@ export const ConversationSidebar: React.FC = () => {
                 {channelError}
               </p>
             )}
+
+            {/* 成员选择 */}
+            <p style={{ margin: 'var(--space-md) 0 var(--space-xs)', fontSize: 13, color: 'var(--text-secondary)' }}>
+              邀请成员（可选）
+            </p>
+            {friends.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>暂无好友，创建后可邀请</p>
+            ) : (
+              <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)' }}>
+                {friends.map((f) => {
+                  const selected = channelMembers.includes(f.userId);
+                  return (
+                    <button
+                      key={f.userId}
+                      onClick={() => {
+                        setChannelMembers((prev) =>
+                          selected ? prev.filter((id) => id !== f.userId) : [...prev, f.userId],
+                        );
+                      }}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 10px',
+                        border: 'none',
+                        backgroundColor: selected ? 'var(--bg-active)' : 'transparent',
+                        color: 'var(--text-primary)',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--font-family)',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <span style={{ fontSize: 11, width: 18, textAlign: 'center' }}>
+                        {selected ? '✓' : ''}
+                      </span>
+                      {f.nickname || f.username}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <div
               style={{
                 display: 'flex',

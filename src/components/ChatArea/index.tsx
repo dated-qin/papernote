@@ -2,7 +2,7 @@
    纸条 PaperNote — 聊天主区域
    ============================================ */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { NotificationOutlined, SearchOutlined } from '@ant-design/icons';
 import { useChatStore } from '../../store/chatStore';
@@ -26,6 +26,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch, onToggleFiles 
   const getAnnouncements = useChatStore((s) => s.getAnnouncements);
   const lightbox = useChatStore((s) => s.lightbox);
   const closeLightbox = useChatStore((s) => s.closeLightbox);
+  const friends = useChatStore((s) => s.friends);
+  const fetchFriends = useChatStore((s) => s.fetchFriends);
+  const inviteMembers = useChatStore((s) => s.inviteMembers);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteSelected, setInviteSelected] = useState<string[]>([]);
 
   useEffect(() => {
     if (!activeConversationId || conversation?.type !== 'channel' || announcements) return;
@@ -63,7 +68,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch, onToggleFiles 
         minWidth: 0, // 防止 flex 子元素溢出
       }}
     >
-      <ChatHeader onOpenSearch={onOpenSearch} onToggleFiles={onToggleFiles} />
+      <ChatHeader
+        onOpenSearch={onOpenSearch}
+        onToggleFiles={onToggleFiles}
+        onInvite={() => {
+          void fetchFriends();
+          setInviteSelected([]);
+          setShowInviteDialog(true);
+        }}
+      />
       {latestAnnouncement && (
         <AnnouncementBar
           announcement={latestAnnouncement}
@@ -72,6 +85,24 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch, onToggleFiles 
       )}
       <MessageList />
       <MessageInput />
+      {showInviteDialog && conversation && (
+        <InviteDialog
+          conversationId={conversation.id}
+          friends={friends}
+          selected={inviteSelected}
+          onToggle={(userId) =>
+            setInviteSelected((prev) =>
+              prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
+            )
+          }
+          onInvite={async () => {
+            if (inviteSelected.length === 0) return;
+            await inviteMembers(conversation.id, inviteSelected);
+            setShowInviteDialog(false);
+          }}
+          onClose={() => setShowInviteDialog(false)}
+        />
+      )}
       {lightbox && (
         <Lightbox
           items={lightbox.items}
@@ -153,7 +184,7 @@ const AnnouncementBar: React.FC<{
 );
 
 // ============ 聊天头部 ============
-const ChatHeader: React.FC<ChatAreaProps> = ({ onOpenSearch, onToggleFiles }) => {
+const ChatHeader: React.FC<ChatAreaProps & { onInvite?: () => void }> = ({ onOpenSearch, onToggleFiles, onInvite }) => {
   const navigate = useNavigate();
   const conversation = useChatStore((s) => s.getActiveConversation());
 
@@ -197,6 +228,23 @@ const ChatHeader: React.FC<ChatAreaProps> = ({ onOpenSearch, onToggleFiles }) =>
 
       {/* 右侧操作按钮 */}
       <div style={{ display: 'flex', gap: 'var(--space-sm)', color: 'var(--text-secondary)' }}>
+        {onInvite && conversation.type === 'channel' && (
+          <button
+            title="邀请成员"
+            onClick={onInvite}
+            style={{
+              ...headerIconStyle,
+              border: 'none',
+              background: 'none',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-family)',
+              fontSize: 16,
+            }}
+          >
+            ➕
+          </button>
+        )}
         {conversation.type === 'channel' && (
           <button
             title="群设置"
@@ -256,6 +304,114 @@ const ChatHeader: React.FC<ChatAreaProps> = ({ onOpenSearch, onToggleFiles }) =>
       </div>
     </div>
   );
+};
+
+// ============ 邀请成员对话框 ============
+
+interface InviteDialogProps {
+  conversationId: string;
+  friends: Array<{ userId: string; nickname: string; username: string }>;
+  selected: string[];
+  onToggle: (userId: string) => void;
+  onInvite: () => void;
+  onClose: () => void;
+}
+
+const InviteDialog: React.FC<InviteDialogProps> = ({
+  friends,
+  selected,
+  onToggle,
+  onInvite,
+  onClose,
+}) => {
+  // ESC 关闭
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 16, color: 'var(--text-primary)' }}>
+          邀请成员加入频道
+        </h3>
+        {friends.length === 0 ? (
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>暂无好友可邀请</p>
+        ) : (
+          <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)' }}>
+            {friends.map((f) => {
+              const sel = selected.includes(f.userId);
+              return (
+                <button
+                  key={f.userId}
+                  onClick={() => onToggle(f.userId)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 12px',
+                    border: 'none',
+                    backgroundColor: sel ? 'var(--bg-active)' : 'transparent',
+                    color: 'var(--text-primary)',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-family)',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ width: 18, textAlign: 'center', fontSize: 11 }}>{sel ? '✓' : ''}</span>
+                  {f.nickname || f.username}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <button onClick={onClose} style={secondaryBtnStyle}>取消</button>
+          <button
+            onClick={onInvite}
+            disabled={selected.length === 0}
+            style={{
+              ...primaryBtnStyle,
+              opacity: selected.length === 0 ? 0.5 : 1,
+            }}
+          >
+            邀请 ({selected.length})
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed', inset: 0, zIndex: 100,
+  backgroundColor: 'rgba(0,0,0,0.28)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+
+const dialogStyle: React.CSSProperties = {
+  width: 'min(360px, 90vw)',
+  backgroundColor: 'var(--bg-primary)',
+  border: '1px solid var(--border-default)',
+  borderRadius: 'var(--radius-md)',
+  boxShadow: 'var(--shadow-lg)',
+  padding: 24,
+};
+
+const primaryBtnStyle: React.CSSProperties = {
+  height: 36, padding: '0 16px', border: 'none', borderRadius: 'var(--radius-sm)',
+  backgroundColor: 'var(--accent-primary)', color: 'var(--white)',
+  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-family)',
+};
+
+const secondaryBtnStyle: React.CSSProperties = {
+  ...primaryBtnStyle,
+  backgroundColor: 'transparent', color: 'var(--text-secondary)',
+  border: '1px solid var(--border-default)',
 };
 
 const headerIconStyle: React.CSSProperties = {
