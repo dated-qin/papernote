@@ -34,11 +34,22 @@ func (s *Service) List(userID int64, q ListQuery) ([]ListItem, error) {
 	}
 
 	query := s.db.Table("conversations c").
-		Select(`c.*, cm.unread_count, cm.muted, cm.pinned,
+		Select(`c.id, c.type, c.owner_id, c.last_msg_id, c.description, c.created_at, c.updated_at,
+			CASE WHEN c.type = 'dm'
+				THEN COALESCE(NULLIF(dm_user.nickname, ''), dm_user.username, '私聊')
+				ELSE COALESCE(NULLIF(c.title, ''), '未命名频道')
+			END AS title,
+			CASE WHEN c.type = 'dm'
+				THEN COALESCE(dm_user.avatar, '')
+				ELSE COALESCE(c.avatar, '')
+			END AS avatar,
+			cm.unread_count, cm.muted, cm.pinned,
 			lm.id AS msg_id,
 			lm.content AS msg_content, lm.sender_id AS msg_sender_id,
 			lm.msg_type, lm.mention_ids AS msg_mention_ids, lm.created_at AS msg_created_at`).
 		Joins("JOIN conversation_members cm ON cm.conversation_id = c.id AND cm.user_id = ?", userID).
+		Joins("LEFT JOIN conversation_members dm_cm ON dm_cm.conversation_id = c.id AND dm_cm.user_id != ? AND c.type = 'dm'", userID).
+		Joins("LEFT JOIN users dm_user ON dm_user.id = dm_cm.user_id").
 		Joins("LEFT JOIN messages lm ON lm.id = c.last_msg_id")
 
 	if q.Type != "" && q.Type != "all" {
@@ -185,6 +196,31 @@ func (s *Service) GetDetail(userID, convID int64) (*ListItem, []MemberResp, erro
 		return nil, nil, err
 	}
 
+	title := conv.Title
+	avatar := conv.Avatar
+	// DM 会话：用对方昵称/头像
+	if conv.Type == "dm" {
+		type dmInfo struct {
+			Nickname string `gorm:"column:nickname"`
+			Avatar   string `gorm:"column:avatar"`
+			Username string `gorm:"column:username"`
+		}
+		var info dmInfo
+		s.db.Table("conversation_members cm").
+			Select("u.nickname, u.avatar, u.username").
+			Joins("JOIN users u ON u.id = cm.user_id").
+			Where("cm.conversation_id = ? AND cm.user_id != ?", convID, userID).
+			First(&info)
+		if info.Nickname != "" {
+			title = info.Nickname
+		} else if info.Username != "" {
+			title = info.Username
+		} else {
+			title = "私聊"
+		}
+		avatar = info.Avatar
+	}
+
 	members, err := s.GetMembers(convID)
 	if err != nil {
 		return nil, nil, err
@@ -193,8 +229,8 @@ func (s *Service) GetDetail(userID, convID int64) (*ListItem, []MemberResp, erro
 	detail := &ListItem{
 		ID:     conv.ID,
 		Type:   conv.Type,
-		Title:  conv.Title,
-		Avatar: conv.Avatar,
+		Title:  title,
+		Avatar: avatar,
 	}
 	return detail, members, nil
 }
