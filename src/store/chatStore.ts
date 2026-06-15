@@ -280,6 +280,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
     if (id) {
       get().markAsRead(id);
+      // 如果该会话没有加载过消息，从服务端拉取历史
+      if (!get().messagesByConversation[id]) {
+        void get().fetchHistory(id);
+      }
     }
   },
 
