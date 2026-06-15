@@ -33,7 +33,15 @@ vi.mock('../../utils/http', () => ({
 
 describe('chatStore', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.mocked(wsClient.send).mockClear();
+    vi.mocked(wsClient.connect).mockClear();
+    vi.mocked(wsClient.disconnect).mockClear();
+    vi.mocked(wsClient.off).mockClear();
+    vi.mocked(http.get).mockClear();
+    vi.mocked(http.post).mockClear();
+    vi.mocked(http.put).mockClear();
+    vi.mocked(http.delete).mockClear();
+    vi.mocked(http.patch).mockClear();
     useChatStore.setState({
       currentUser: { id: 'u1', username: 'test', nickname: 'Test', avatarUrl: '', status: 'online' },
       activeConversationId: null,
@@ -134,6 +142,52 @@ describe('chatStore', () => {
     });
   });
 
+  describe('friend request websocket events', () => {
+    it('should add incoming friend requests', () => {
+      const handler = getWsHandler('friend_request');
+
+      handler({
+        action: 'friend_request',
+        data: {
+          id: 7,
+          from_user_id: 2,
+          from_username: 'alice',
+          from_nickname: 'Alice',
+          from_avatar: '',
+          message: 'hello',
+          status: 'pending',
+          created_at: '2026-06-15T09:00:00Z',
+        },
+      });
+
+      const request = useChatStore.getState().friendRequests[0];
+      expect(request.id).toBe('7');
+      expect(request.fromNickname).toBe('Alice');
+      expect(request.status).toBe('pending');
+    });
+
+    it('should refresh friends and conversations when request is accepted', () => {
+      const handler = getWsHandler('friend_request_result');
+      handler({
+        action: 'friend_request_result',
+        data: {
+          request_id: 7,
+          action: 'accept',
+          status: 'accepted',
+          user_id: 2,
+          username: 'alice',
+          nickname: 'Alice',
+          avatar: '',
+          conversation_id: 9,
+        },
+      });
+
+      expect(http.get).toHaveBeenCalledWith('/api/friends');
+      expect(http.get).toHaveBeenCalledWith('/api/conversations');
+      expect(useChatStore.getState().users['2']?.nickname).toBe('Alice');
+    });
+  });
+
   describe('sendMessage', () => {
     it('should not send empty or whitespace-only content', () => {
       useChatStore.setState({ activeConversationId: '1' });
@@ -224,3 +278,9 @@ describe('chatStore', () => {
     });
   });
 });
+
+function getWsHandler(action: string): (env: { action: string; data: Record<string, unknown> }) => void {
+  const call = vi.mocked(wsClient.on).mock.calls.find(([registeredAction]) => registeredAction === action);
+  if (!call) throw new Error(`missing ws handler: ${action}`);
+  return call[1] as (env: { action: string; data: Record<string, unknown> }) => void;
+}

@@ -42,9 +42,6 @@ func main() {
 	})
 	authHandler := auth.NewHandler(authSvc)
 
-	userSvc := user.NewService(database, rdb)
-	userHandler := user.NewHandler(userSvc)
-
 	convSvc := conversation.NewService(database)
 	convHandler := conversation.NewHandler(convSvc)
 
@@ -69,6 +66,9 @@ func main() {
 	// ---------- WebSocket Hub ----------
 	hub := ws.NewHub(database, rdb, cfg.JWTSecret, msgSender)
 	go hub.Run()
+
+	userSvc := user.NewService(database, rdb, &wsUserNotifier{hub: hub})
+	userHandler := user.NewHandler(userSvc)
 
 	adminSvc := admin.NewService(database, rdb)
 	adminHandler := admin.NewHandler(adminSvc)
@@ -201,4 +201,12 @@ func (s *wsMsgSender) SendMessage(senderID int64, data ws.SendMsgData) (int64, i
 		return 0, 0, err
 	}
 	return resp.ID, resp.ConversationID, nil
+}
+
+type wsUserNotifier struct {
+	hub *ws.Hub
+}
+
+func (n *wsUserNotifier) NotifyUser(userID int64, action string, data map[string]interface{}) {
+	n.hub.SendToUser(userID, ws.Envelope{Action: action, Data: data})
 }

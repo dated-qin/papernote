@@ -13,6 +13,7 @@ import type {
   Message,
   User,
   Conversation,
+  FriendRequest,
   MessageStatus,
   MessageType,
   SearchMessageResult,
@@ -90,6 +91,19 @@ function apiToSearchMessage(raw: Record<string, unknown>): SearchMessageResult {
     ...apiToMessage(raw),
     conversationName: (raw.conversation_name as string) ?? '',
     senderName: (raw.sender_name as string) ?? '',
+  };
+}
+
+function apiToFriendRequest(raw: Record<string, unknown>): FriendRequest {
+  return {
+    id: String(raw.id ?? raw.request_id),
+    fromUserId: String(raw.from_user_id ?? raw.user_id),
+    fromUsername: String(raw.from_username ?? raw.username ?? ''),
+    fromNickname: String(raw.from_nickname ?? raw.nickname ?? ''),
+    fromAvatarUrl: String(raw.from_avatar ?? raw.avatar ?? ''),
+    message: (raw.message as string) || undefined,
+    status: ((raw.status as string) ?? 'pending') as 'pending' | 'accepted' | 'rejected',
+    createdAt: raw.created_at ? new Date(raw.created_at as string).getTime() : Date.now(),
   };
 }
 
@@ -594,6 +608,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     // 如果接受，刷新好友列表
     if (action === 'accept') {
       await get().fetchFriends();
+      await get().fetchConversations();
     }
   },
 
@@ -604,18 +619,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         '/api/friends/requests',
       );
       if (res.code === 0) {
-        const friendRequests = (res.data.requests ?? []).map(
-          (r: Record<string, unknown>) => ({
-            id: String(r.id),
-            fromUserId: String(r.from_user_id),
-            fromUsername: (r.from_username as string) ?? '',
-            fromNickname: (r.from_nickname as string) ?? '',
-            fromAvatarUrl: (r.from_avatar as string) ?? '',
-            message: (r.message as string) || undefined,
-            status: ((r.status as string) ?? 'pending') as 'pending' | 'accepted' | 'rejected',
-            createdAt: r.created_at ? new Date(r.created_at as string).getTime() : Date.now(),
-          }),
-        );
+        const friendRequests = (res.data.requests ?? []).map(apiToFriendRequest);
         set({ friendRequests });
       }
     } catch {
@@ -963,9 +967,76 @@ wsClient.on('msg_status', (env) => {
   }
 });
 
+/** 好友请求实时推送 */
+wsClient.on('friend_request', (env) => {
+  const request = apiToFriendRequest(env.data as Record<string, unknown>);
+  useChatStore.setState((state) => {
+    const exists = state.friendRequests.some((r) => r.id === request.id);
+    return {
+      friendRequests: exists
+        ? state.friendRequests.map((r) => (r.id === request.id ? request : r))
+        : [request, ...state.friendRequests],
+      users: {
+        ...state.users,
+        [request.fromUserId]: {
+          id: request.fromUserId,
+          username: request.fromUsername,
+          nickname: request.fromNickname,
+          avatarUrl: request.fromAvatarUrl,
+          status: 'offline',
+        },
+      },
+    };
+  });
+  showFriendNotification('纸条 · 好友请求', `${request.fromNickname || request.fromUsername} 请求添加你为好友`);
+});
+
+/** 好友请求处理结果实时推送 */
+wsClient.on('friend_request_result', (env) => {
+  const data = env.data as Record<string, unknown>;
+  const status = String(data.status ?? '');
+  const friendId = String(data.user_id ?? '');
+  const nickname = String(data.nickname ?? data.username ?? '对方');
+
+  useChatStore.setState((state) => ({
+    friendRequests: state.friendRequests.map((r) =>
+      r.id === String(data.request_id)
+        ? { ...r, status: status === 'accepted' ? 'accepted' : 'rejected' }
+        : r,
+    ),
+    users: friendId
+      ? {
+          ...state.users,
+          [friendId]: {
+            id: friendId,
+            username: String(data.username ?? ''),
+            nickname,
+            avatarUrl: String(data.avatar ?? ''),
+            status: 'offline',
+          },
+        }
+      : state.users,
+  }));
+
+  const store = useChatStore.getState();
+  if (status === 'accepted') {
+    void store.fetchFriends();
+    void store.fetchConversations();
+    showFriendNotification('纸条 · 好友请求已通过', `${nickname} 已同意你的好友请求`);
+  } else if (status === 'rejected') {
+    showFriendNotification('纸条 · 好友请求被拒绝', `${nickname} 已拒绝你的好友请求`);
+  }
+});
+
 // ---------- 桌面通知点击：显示主窗口并跳转到对应会话 ----------
 if (isElectron() && window.electronAPI) {
   window.electronAPI.onNotificationClick(() => {
     window.location.hash = '#/';
   });
+}
+
+function showFriendNotification(title: string, body: string): void {
+  if (isElectron() && !document.hasFocus()) {
+    window.electronAPI?.showNotification(title, body);
+  }
 }

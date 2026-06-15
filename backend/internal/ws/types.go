@@ -45,9 +45,9 @@ type SendMsgData struct {
 	MentionIDs     []string
 }
 
-// UserNotifier 在线状态通知接口
+// UserNotifier 用户点对点通知接口
 type UserNotifier interface {
-	GetOnlineFriends(userID int64) []int64
+	SendToUser(userID int64, env Envelope)
 }
 
 // ---------- 升级器 ----------
