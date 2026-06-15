@@ -1134,17 +1134,18 @@ wsClient.on('new_msg', (env) => {
       message.senderId !== store.currentUser.id &&
       !!message.mentionIds?.some((id) => id === store.currentUser?.id || id === 'all');
     if (message.senderId !== store.currentUser?.id && (!conv?.isMuted || isMentioned)) {
-      const title = conv
-        ? `${isMentioned ? '[有人@你] ' : ''}${sender?.nickname ?? '新消息'}${conv.type === 'channel' ? ` - ${conv.name}` : ''}`
-        : '纸条 · 新消息';
+      // 标题：发送者昵称（频道消息前缀频道名）
+      const senderName = sender?.nickname || sender?.username || '新消息';
+      const title = conv?.type === 'channel'
+        ? `${isMentioned ? '[有人@你] ' : ''}${senderName} • ${conv.name}`
+        : senderName;
+      // 正文：文本直接显示，非文本显示类型标签（不显示 JSON）
       const body =
-        message.type === 'text'
-          ? message.content
-          : message.type === 'image'
-            ? '[图片]'
-            : message.type === 'video'
-              ? '[视频]'
-              : '[文件]';
+        message.type === 'text' ? message.content
+        : message.type === 'image' ? '[图片]'
+        : message.type === 'video' ? '[视频]'
+        : message.type === 'file' ? '[文件]'
+        : '[消息]';
       window.electronAPI?.showNotification(title, body);
     }
   }
