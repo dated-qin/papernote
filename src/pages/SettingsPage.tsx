@@ -207,11 +207,8 @@ export const SettingsPage: React.FC = () => {
     setProfileMsg('');
     setProfileError('');
     try {
-      const fileId = await uploadFile(file);
-      const res = await http.get<{ url: string }>(`/api/files/${fileId}/url`);
-      if (res.code === 0) {
-        setAvatar(res.data.url);
-      }
+      const result = await uploadFile(file);
+      setAvatar(result.url);
     } catch (e) {
       setProfileError(e instanceof Error ? e.message : '头像上传失败');
     } finally {

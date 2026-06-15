@@ -180,24 +180,24 @@ export const MessageInput: React.FC = () => {
       setUploadError('');
 
       try {
-        const fileId = await uploadFile(file, (pct) => setUploadProgress(pct));
+        const result = await uploadFile(file, (pct) => setUploadProgress(pct));
 
         // 根据文件类型确定消息类型和 content
         const isImage = file.type.startsWith('image/');
         const isVideo = file.type.startsWith('video/');
 
         const fileData: Record<string, unknown> = {
-          file_id: fileId,
+          file_id: result.fileId,
           file_name: file.name,
           file_size: file.size,
           mime_type: file.type,
+          url: result.url,
         };
 
-        if (isImage || isVideo) {
-          // 图片/视频：解析尺寸
-          fileData.url = `/api/files/${fileId}/url`;
-          if (isVideo) fileData.thumbnail_url = `/api/files/${fileId}/thumbnail`;
-          else fileData.thumbnail_url = fileData.url;
+        if (isVideo) {
+          fileData.thumbnail_url = `/api/files/${result.fileId}/thumbnail`;
+        } else if (isImage) {
+          fileData.thumbnail_url = result.url;
         }
 
         // 发送文件消息

@@ -302,7 +302,9 @@ func (s *Service) ManageMember(operatorID, convID, targetID int64, req ManageMem
 	case "transfer_owner":
 		return s.transferOwner(operatorID, convID, targetID)
 	case "mute":
-		return s.muteMember(operatorID, convID, targetID, req.Duration)
+			return s.muteMember(operatorID, convID, targetID, req.Duration)
+		case "unmute":
+			return s.muteMember(operatorID, convID, targetID, 0)
 	default:
 		return errors.New("未知操作: " + req.Action)
 	}
