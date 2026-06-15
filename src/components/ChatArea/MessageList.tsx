@@ -82,29 +82,43 @@ export const MessageList: React.FC = () => {
   const isLoadingMore = useRef(false);
   const hasMore = useRef(true);
   const oldestIdRef = useRef('');
+  const prevConvRef = useRef<string | null>(null);
+  const shouldScrollBottom = useRef(false);
 
   const blocks = groupMessages(messages);
 
-  // 切换会话或收到新消息时判断是否需要滚到底部
-  useEffect(() => {
-    const el = listRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (atBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
-
-  // 切换会话时：重置 + 滚到底部
-  useEffect(() => {
+  // 切换会话时：重置 + 标记需要滚到底部
+  if (activeConversationId !== prevConvRef.current) {
+    prevConvRef.current = activeConversationId;
     hasMore.current = true;
     oldestIdRef.current = '';
     isLoadingMore.current = false;
-    // 等 DOM 渲染完再滚
-    requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'auto' });
-    });
-  }, [activeConversationId]);
+    shouldScrollBottom.current = true;
+  }
+
+  // 每次渲染后按需滚到底部
+  useEffect(() => {
+    if (!shouldScrollBottom.current) return;
+    const el = listRef.current;
+    if (!el || messages.length === 0) return;
+    shouldScrollBottom.current = false;
+    el.scrollTop = el.scrollHeight;
+  });
+
+  // 新消息到达：如果已接近底部则滚
+  const prevLenRef = useRef(0);
+  useEffect(() => {
+    if (messages.length <= prevLenRef.current) {
+      prevLenRef.current = messages.length;
+      return;
+    }
+    prevLenRef.current = messages.length;
+    const el = listRef.current;
+    if (!el) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages]);
 
   // 向上滚动加载更早消息
   const handleScroll = useCallback(() => {
