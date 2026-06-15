@@ -56,6 +56,7 @@ function apiToConversation(raw: Record<string, unknown>): Conversation {
     unreadCount: (raw.unread_count as number) ?? 0,
     isMuted: (raw.muted as boolean) ?? false,
     isPinned: (raw.pinned as boolean) ?? false,
+    memberIds: raw.member_ids ? (raw.member_ids as Array<string | number>).map(String) : undefined,
     lastMessage: lastMsg
       ? {
           id: String(lastMsg.id),
@@ -174,6 +175,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   activeThreadRootId: null,
   lightbox: null,
   hiddenConversationIds: [],
+  deletedMessageIds: [],
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
   inputDraft: {},
   typingUsers: {},
@@ -254,9 +256,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   setPresenceStatus: (status: User['status']) => {
-    set((state) => ({
-      currentUser: state.currentUser ? { ...state.currentUser, status } : null,
-    }));
+    set((state) => {
+      if (!state.currentUser) return state;
+      const updated = { ...state.currentUser, status };
+      return {
+        currentUser: updated,
+        users: { ...state.users, [updated.id]: updated },
+      };
+    });
   },
 
   // ===================== 工作区 Actions =====================
@@ -634,13 +641,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   addMessages: (messages: Message[]) => {
-    const { messagesByConversation } = get();
+    const { messagesByConversation, deletedMessageIds } = get();
     if (messages.length === 0) return;
     const convId = messages[0].conversationId;
     const existing = messagesByConversation[convId] ?? [];
-    // 合并去重
+    // 合并去重 + 过滤已删除的消息
     const existingIds = new Set(existing.map((m) => m.id));
-    const newMsgs = messages.filter((m) => !existingIds.has(m.id));
+    const deletedIds = new Set(deletedMessageIds);
+    const newMsgs = messages.filter((m) => !existingIds.has(m.id) && !deletedIds.has(m.id));
     if (newMsgs.length === 0) return;
     set({
       messagesByConversation: {
@@ -713,7 +721,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         ...state.messagesByConversation,
         [convId]: (state.messagesByConversation[convId] ?? []).filter((m) => m.id !== msgId),
       },
+      deletedMessageIds: [...state.deletedMessageIds, msgId],
     }));
+    // 持久化到 localStorage
+    try {
+      const ids = JSON.parse(localStorage.getItem('deleted_msg_ids') || '[]') as string[];
+      ids.push(msgId);
+      localStorage.setItem('deleted_msg_ids', JSON.stringify(ids.slice(-500))); // 最多保留500条
+    } catch { /* ignore */ }
   },
 
   /** 转发消息：向目标会话发送相同内容 */
@@ -725,7 +740,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     if (!msg) return;
     // 切换到目标会话后再发送（sendMessage 使用 activeConversationId）
     get().setActiveConversation(targetConvId);
-    get().sendMessage(`[转发] ${msg.content}`, undefined, undefined, msg.type);
+    const content = msg.type === 'text' ? `[转发] ${msg.content}` : msg.content;
+    get().sendMessage(content, undefined, undefined, msg.type);
   },
 
   // ===================== 好友 Actions =====================
@@ -927,57 +943,51 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // ===================== Reaction Actions =====================
 
   addReaction: (convId: string, msgId: string, emoji: string, userId: string) => {
-    const { messagesByConversation } = get();
-    const msgs = messagesByConversation[convId];
-    if (!msgs) return;
-
-    // 乐观更新
-    set({
-      messagesByConversation: {
-        ...messagesByConversation,
-        [convId]: msgs.map((m) => {
-          if (m.id !== msgId) return m;
-          const reactions = m.reactions ? [...m.reactions] : [];
-          const existing = reactions.find((r) => r.emoji === emoji);
-          if (existing) {
-            if (!existing.userIds.includes(userId)) {
-              existing.userIds = [...existing.userIds, userId];
+    // 乐观更新（使用 functional setter 避免竞态）
+    set((state) => {
+      const msgs = state.messagesByConversation[convId];
+      if (!msgs) return state;
+      return {
+        messagesByConversation: {
+          ...state.messagesByConversation,
+          [convId]: msgs.map((m) => {
+            if (m.id !== msgId) return m;
+            const reactions = m.reactions ? m.reactions.map((r) => ({ ...r, userIds: [...r.userIds] })) : [];
+            const idx = reactions.findIndex((r) => r.emoji === emoji);
+            if (idx >= 0) {
+              if (!reactions[idx].userIds.includes(userId)) {
+                reactions[idx] = { ...reactions[idx], userIds: [...reactions[idx].userIds, userId] };
+              }
+            } else {
+              reactions.push({ emoji, userIds: [userId] });
             }
-          } else {
-            reactions.push({ emoji, userIds: [userId] });
-          }
-          return { ...m, reactions };
-        }),
-      },
+            return { ...m, reactions };
+          }),
+        },
+      };
     });
-
-    // 同步到服务端
     wsClient.send('reaction', { message_id: Number(msgId), emoji, action: 'add' });
   },
 
   removeReaction: (convId: string, msgId: string, emoji: string, userId: string) => {
-    const { messagesByConversation } = get();
-    const msgs = messagesByConversation[convId];
-    if (!msgs) return;
-
-    // 乐观更新
-    set({
-      messagesByConversation: {
-        ...messagesByConversation,
-        [convId]: msgs.map((m) => {
-          if (m.id !== msgId || !m.reactions) return m;
-          const reactions = m.reactions
-            .map((r) => {
-              if (r.emoji !== emoji) return r;
-              return { ...r, userIds: r.userIds.filter((id) => id !== userId) };
-            })
-            .filter((r) => r.userIds.length > 0);
-          return { ...m, reactions };
-        }),
-      },
+    set((state) => {
+      const msgs = state.messagesByConversation[convId];
+      if (!msgs) return state;
+      return {
+        messagesByConversation: {
+          ...state.messagesByConversation,
+          [convId]: msgs.map((m) => {
+            if (m.id !== msgId || !m.reactions) return m;
+            const reactions = m.reactions
+              .map((r) => (r.emoji === emoji
+                ? { ...r, userIds: r.userIds.filter((id) => id !== userId) }
+                : { ...r, userIds: [...r.userIds] }))
+              .filter((r) => r.userIds.length > 0);
+            return { ...m, reactions };
+          }),
+        },
+      };
     });
-
-    // 同步到服务端
     wsClient.send('reaction', { message_id: Number(msgId), emoji, action: 'remove' });
   },
 
@@ -1038,6 +1048,15 @@ try {
   }
 } catch { /* ignore */ }
 
+// 加载已删除消息ID列表
+try {
+  const raw = localStorage.getItem('deleted_msg_ids');
+  if (raw) {
+    const ids = JSON.parse(raw) as string[];
+    if (Array.isArray(ids)) useChatStore.setState({ deletedMessageIds: ids });
+  }
+} catch { /* ignore */ }
+
 // 在模块加载时注册，确保只注册一次
 
 /** 接收新消息：服务端通过 new_msg 推送 */
@@ -1054,7 +1073,9 @@ wsClient.on('new_msg', (env) => {
     createdAt: apiMsg.created_at ? new Date(apiMsg.created_at as string).getTime() : Date.now(),
     quoteId: apiMsg.reply_to ? String(apiMsg.reply_to) : undefined,
     threadRootId: apiMsg.thread_root_id ? String(apiMsg.thread_root_id) : undefined,
+    replyCount: (apiMsg.reply_count as number) ?? 0,
     mentionIds: apiToStringArray(apiMsg.mention_ids),
+    reactions: apiToReactions(apiMsg.reactions),
   };
 
   if (clientMsgId) {
@@ -1185,11 +1206,11 @@ wsClient.on('friend_request', (env) => {
       users: {
         ...state.users,
         [request.fromUserId]: {
+          ...state.users[request.fromUserId],
           id: request.fromUserId,
           username: request.fromUsername,
           nickname: request.fromNickname,
           avatarUrl: request.fromAvatarUrl,
-          status: 'offline',
         },
       },
     };
@@ -1214,11 +1235,11 @@ wsClient.on('friend_request_result', (env) => {
       ? {
           ...state.users,
           [friendId]: {
+            ...state.users[friendId],
             id: friendId,
             username: String(data.username ?? ''),
             nickname,
             avatarUrl: String(data.avatar ?? ''),
-            status: 'offline',
           },
         }
       : state.users,
@@ -1256,8 +1277,16 @@ wsClient.on('profile_updated', (env) => {
     },
   }));
 
-  // 如果信息确实有变化，更新关联数据（仅当变更是其他人的资料时，不更新自己）
   const isSelf = userId === store.currentUser?.id;
+
+  // 如果是自己的资料变更（来自其他设备），同步更新 currentUser
+  if (isSelf) {
+    useChatStore.setState((s) => ({
+      currentUser: s.currentUser ? { ...s.currentUser, nickname, avatarUrl: avatar } : null,
+    }));
+  }
+
+  // 如果信息确实有变化，更新关联数据（仅当变更是其他人的资料时，不更新自己）
   if (!isSelf && old && old.nickname !== nickname) {
     // 更新好友列表
     useChatStore.setState((state) => ({

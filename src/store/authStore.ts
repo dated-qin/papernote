@@ -149,6 +149,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 wsClient.on('kick', (env) => {
   const reason = (env.data.reason as string) || '账号在别处登录';
   tokenStorage.clear();
+  wsClient.disconnect();
+  useChatStore.getState().logout();
+  useAuthStore.setState({ isAuthenticated: false, currentUser: null, errorMessage: null });
   alert(reason);
   window.location.hash = '#/login';
 });
