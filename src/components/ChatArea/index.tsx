@@ -8,6 +8,7 @@ import { NotificationOutlined, SearchOutlined } from '@ant-design/icons';
 import { useChatStore } from '../../store/chatStore';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import { Lightbox } from './Lightbox';
 import type { Announcement } from '../../types';
 
 interface ChatAreaProps {
@@ -22,6 +23,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
     activeConversationId ? s.announcementsByConversation[activeConversationId] : undefined,
   );
   const getAnnouncements = useChatStore((s) => s.getAnnouncements);
+  const lightbox = useChatStore((s) => s.lightbox);
+  const closeLightbox = useChatStore((s) => s.closeLightbox);
 
   useEffect(() => {
     if (!activeConversationId || conversation?.type !== 'channel' || announcements) return;
@@ -68,6 +71,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
       )}
       <MessageList />
       <MessageInput />
+      {lightbox && (
+        <Lightbox
+          items={lightbox.items}
+          index={lightbox.index}
+          onClose={closeLightbox}
+        />
+      )}
     </div>
   );
 };

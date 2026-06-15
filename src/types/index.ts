@@ -91,6 +91,22 @@ export interface ActiveQuote {
 }
 
 // ==========================================
+// 全屏查看器
+// ==========================================
+
+export interface LightboxItem {
+  url: string;
+  thumbnailUrl?: string;
+  type: 'image' | 'video';
+  name?: string;
+}
+
+export interface LightboxState {
+  items: LightboxItem[];
+  index: number;
+}
+
+// ==========================================
 // 消息回应
 // ==========================================
 
@@ -212,6 +228,7 @@ export interface ChatStore {
   lastSeq: number;
   highlightedMessageId: string | null;
   activeQuote: ActiveQuote | null;
+  lightbox: LightboxState | null;
 
   // ---- 线程 ----
   activeThreadRootId: string | null;
@@ -263,6 +280,8 @@ export interface ChatStore {
   jumpToMessage: (conversationId: string, messageId: string, message?: Message) => Promise<void>;
   setQuote: (conversationId: string, messageId: string) => void;
   clearQuote: () => void;
+  openLightbox: (items: LightboxItem[], index: number) => void;
+  closeLightbox: () => void;
   clearHighlightedMessage: () => void;
   addMessage: (message: Message) => void;
   addMessages: (messages: Message[]) => void;

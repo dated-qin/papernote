@@ -3,7 +3,9 @@
    MessageImage / MessageVideo / MessageFile / ImagePreview
    ============================================ */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
+import { useChatStore } from '../../store/chatStore';
+import { type LightboxItem } from './Lightbox';
 import http from '../../utils/http';
 import { getFileIcon, formatFileSize, formatDuration } from '../../utils/fileUtils';
 
@@ -50,32 +52,51 @@ interface MessageImageProps {
 
 export const MessageImage: React.FC<MessageImageProps> = ({ content }) => {
   const data = parseContent<ImageContent>(content);
-  const [expanded, setExpanded] = useState(false);
+  const openLightbox = useChatStore((s) => s.openLightbox);
+  const messagesByConversation = useChatStore((s) => s.messagesByConversation);
 
   if (!data) return <span style={{ color: 'var(--text-muted)' }}>[图片加载失败]</span>;
 
   const src = data.thumbnail_url || data.url;
-  const previewStyle: React.CSSProperties = expanded
-    ? { maxWidth: '90vw', maxHeight: '60vh', objectFit: 'contain' as const }
-    : { maxWidth: 320, maxHeight: 240, objectFit: 'cover' as const };
+
+  const handleClick = () => {
+    // 收集当前会话中所有图片/视频
+    const items: LightboxItem[] = [];
+    let clickedIndex = 0;
+    // 遍历所有会话的消息（实际上我们只知道当前文件的内容，需要从store获取）
+    for (const msgs of Object.values(messagesByConversation)) {
+      for (const msg of msgs) {
+        const parsed = parseContent<ImageContent | VideoContent>(msg.content);
+        if (!parsed) continue;
+        if (msg.type === 'image') {
+          const img = parsed as ImageContent;
+          items.push({ url: img.url, thumbnailUrl: img.thumbnail_url, type: 'image' });
+        } else if (msg.type === 'video') {
+          const vid = parsed as VideoContent;
+          items.push({ url: vid.url, thumbnailUrl: vid.thumbnail_url, type: 'video' });
+        }
+      }
+    }
+    // 找到当前点击的索引
+    clickedIndex = items.findIndex((item) => item.url === data.url);
+    if (clickedIndex === -1) clickedIndex = 0;
+    openLightbox(items, clickedIndex);
+  };
 
   return (
-    <>
-      <img
-        src={src}
-        alt="图片消息"
-        style={{
-          ...previewStyle,
-          borderRadius: 'var(--radius-sm)',
-          cursor: 'pointer',
-          display: 'block',
-        }}
-        onClick={() => setExpanded(!expanded)}
-      />
-      {expanded && (
-        <ImagePreview src={data.url} onClose={() => setExpanded(false)} />
-      )}
-    </>
+    <img
+      src={src}
+      alt="图片消息"
+      style={{
+        maxWidth: 320,
+        maxHeight: 240,
+        objectFit: 'cover',
+        borderRadius: 'var(--radius-sm)',
+        cursor: 'pointer',
+        display: 'block',
+      }}
+      onClick={handleClick}
+    />
   );
 };
 
@@ -87,15 +108,36 @@ interface MessageVideoProps {
 
 export const MessageVideo: React.FC<MessageVideoProps> = ({ content }) => {
   const data = parseContent<VideoContent>(content);
+  const openLightbox = useChatStore((s) => s.openLightbox);
+  const messagesByConversation = useChatStore((s) => s.messagesByConversation);
 
   if (!data) return <span style={{ color: 'var(--text-muted)' }}>[视频加载失败]</span>;
+
+  const handleClick = () => {
+    const items: LightboxItem[] = [];
+    let clickedIndex = 0;
+    for (const msgs of Object.values(messagesByConversation)) {
+      for (const msg of msgs) {
+        const parsed = parseContent<ImageContent | VideoContent>(msg.content);
+        if (!parsed) continue;
+        if (msg.type === 'image') {
+          const img = parsed as ImageContent;
+          items.push({ url: img.url, thumbnailUrl: img.thumbnail_url, type: 'image' });
+        } else if (msg.type === 'video') {
+          const vid = parsed as VideoContent;
+          items.push({ url: vid.url, thumbnailUrl: vid.thumbnail_url, type: 'video' });
+        }
+      }
+    }
+    clickedIndex = items.findIndex((item) => item.url === data.url);
+    if (clickedIndex === -1) clickedIndex = 0;
+    openLightbox(items, clickedIndex);
+  };
 
   return (
     <div
       style={{ position: 'relative', maxWidth: 320, cursor: 'pointer' }}
-      onClick={() => {
-        if (data.url) window.open(data.url, '_blank');
-      }}
+      onClick={handleClick}
     >
       <img
         src={data.thumbnail_url || data.url}

@@ -172,6 +172,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   highlightedMessageId: null,
   activeQuote: null,
   activeThreadRootId: null,
+  lightbox: null,
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
   inputDraft: {},
   typingUsers: {},
@@ -512,6 +513,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   clearQuote: () => set({ activeQuote: null }),
+
+  openLightbox: (items, index) => set({ lightbox: { items, index } }),
+  closeLightbox: () => set({ lightbox: null }),
 
   clearHighlightedMessage: () => set({ highlightedMessageId: null }),
 
