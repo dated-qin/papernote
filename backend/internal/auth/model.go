@@ -57,8 +57,13 @@ type ResetPasswordReq struct {
 }
 
 type AuthResp struct {
-	UserID int64  `json:"user_id"`
-	Token  string `json:"token"`
+	UserID       int64  `json:"user_id"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+type RefreshReq struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
 type MeResp struct {

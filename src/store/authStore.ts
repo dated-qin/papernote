@@ -32,6 +32,7 @@ interface AuthState {
 interface AuthResponse {
   user_id: number;
   token: string;
+  refresh_token?: string;
 }
 
 interface MeResponse {
@@ -96,6 +97,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const res = await http.post<AuthResponse>('/api/auth/register', data);
       if (res.code === 0) {
         tokenStorage.set(res.data.token);
+        if (res.data.refresh_token) tokenStorage.setRefresh(res.data.refresh_token);
         set({ isAuthenticated: true, isLoading: false });
         wsClient.connect(res.data.token);
         await get().fetchCurrentUser();
@@ -110,7 +112,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   /** 登出：清除 token、断开 WebSocket、重置状态 */
   logout: () => {
-    tokenStorage.remove();
+    tokenStorage.clear();
     wsClient.disconnect();
     useChatStore.getState().logout();
     set({ isAuthenticated: false, currentUser: null, errorMessage: null });
@@ -146,7 +148,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 // ---------- WebSocket "被踢" 处理 ----------
 wsClient.on('kick', (env) => {
   const reason = (env.data.reason as string) || '账号在别处登录';
-  tokenStorage.remove();
+  tokenStorage.clear();
   alert(reason);
   window.location.hash = '#/login';
 });

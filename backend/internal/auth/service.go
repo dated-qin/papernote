@@ -81,7 +81,8 @@ func (s *Service) Register(req RegisterReq) (*AuthResp, error) {
 		return nil, err
 	}
 
-	return &AuthResp{UserID: user.ID, Token: token}, nil
+	refreshToken, _ := s.generateRefreshToken(user.ID)
+	return &AuthResp{UserID: user.ID, Token: token, RefreshToken: refreshToken}, nil
 }
 
 // ---------- 登录 ----------
@@ -114,7 +115,8 @@ func (s *Service) Login(req LoginReq) (*AuthResp, error) {
 		return nil, err
 	}
 
-	return &AuthResp{UserID: user.ID, Token: token}, nil
+		refreshToken, _ := s.generateRefreshToken(user.ID)
+		return &AuthResp{UserID: user.ID, Token: token, RefreshToken: refreshToken}, nil
 }
 
 // ---------- 获取当前用户 ----------
@@ -250,6 +252,86 @@ func (s *Service) generateToken(userID int64, username, role string) (string, er
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(s.cfg.JWTSecret))
+}
+
+func (s *Service) generateRefreshToken(userID int64) (string, error) {
+	claims := jwt.MapClaims{
+		"sub": strconv.FormatInt(userID, 10),
+		"iat": time.Now().Unix(),
+		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(), // 30 天
+		"typ": "refresh",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	t, err := token.SignedString([]byte(s.cfg.JWTSecret))
+	if err != nil {
+		return "", err
+	}
+
+	// 存储到 Redis（用于撤销）
+	ctx := context.Background()
+	key := fmt.Sprintf("refresh_token:%d:%s", userID, t)
+	s.rdb.Set(ctx, key, "1", 30*24*time.Hour)
+
+	return t, nil
+}
+
+func (s *Service) RefreshToken(refreshToken string) (*AuthResp, error) {
+	// 解析验证 refresh token
+	token, err := jwt.Parse(refreshToken, func(t *jwt.Token) (interface{}, error) {
+		return []byte(s.cfg.JWTSecret), nil
+	})
+	if err != nil || !token.Valid {
+		return nil, errors.New("refresh token 无效或已过期")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("token 格式错误")
+	}
+
+	// 检查是否为 refresh 类型
+	if typ, _ := claims["typ"].(string); typ != "refresh" {
+		return nil, errors.New("非法的 token 类型")
+	}
+
+	userIDStr, _ := claims["sub"].(string)
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		return nil, errors.New("token 数据异常")
+	}
+
+	// 检查 Redis 中是否存在（未被撤销）
+	ctx := context.Background()
+	key := fmt.Sprintf("refresh_token:%d:%s", userID, refreshToken)
+	exists, _ := s.rdb.Exists(ctx, key).Result()
+	if exists == 0 {
+		return nil, errors.New("refresh token 已被撤销")
+	}
+
+	// 轮换：删除旧 refresh token，生成新的
+	s.rdb.Del(ctx, key)
+
+	var user User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return nil, errors.New("用户不存在")
+	}
+
+	accessToken, err := s.generateToken(user.ID, user.Username, user.Role)
+	if err != nil {
+		return nil, err
+	}
+
+	newRefreshToken, err := s.generateRefreshToken(user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AuthResp{
+		UserID:       user.ID,
+		Token:        accessToken,
+		RefreshToken: newRefreshToken,
+	}, nil
 }
 
 // ---------- 限流 ----------

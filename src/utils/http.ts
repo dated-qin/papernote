@@ -6,6 +6,7 @@
 
 import axios, { AxiosError, InternalAxiosRequestConfig, type AxiosRequestConfig } from 'axios';
 import { handleApiError } from './errorHandler';
+import { tokenStorage } from './token';
 
 // ---------- 统一响应类型 ----------
 /** 所有 API 响应的统一结构 */
@@ -34,6 +35,39 @@ instance.interceptors.request.use(
   (error: AxiosError) => Promise.reject(error),
 );
 
+// ---------- Token 刷新：防并发 ----------
+
+let refreshPromise: Promise<string | null> | null = null;
+
+async function tryRefreshToken(): Promise<string | null> {
+  const refreshToken = tokenStorage.getRefresh();
+  if (!refreshToken) return null;
+
+  // 如果已有刷新进行中，等待同一个 Promise
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const res = await axios.post<{ code: number; data?: { token: string; refresh_token?: string } }>(
+        `${instance.defaults.baseURL}/api/auth/refresh`,
+        { refresh_token: refreshToken },
+      );
+      if (res.data.code === 0 && res.data.data?.token) {
+        tokenStorage.set(res.data.data.token);
+        if (res.data.data.refresh_token) tokenStorage.setRefresh(res.data.data.refresh_token);
+        return res.data.data.token;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 // ---------- 响应拦截器：统一数据解包 & 错误处理 ----------
 instance.interceptors.response.use(
   (res) => {
@@ -44,19 +78,33 @@ instance.interceptors.response.use(
     }
     return res.data;
   },
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
+  async (error: AxiosError) => {
+    const status = error.response?.status;
+    const data = error.response?.data as { code?: number; message?: string } | undefined;
+
+    if (status === 401 && data?.code === 40101) {
+      // Token 过期 → 尝试刷新
+      const newToken = await tryRefreshToken();
+      if (newToken && error.config) {
+        // 重试原请求
+        error.config.headers.Authorization = `Bearer ${newToken}`;
+        return instance.request(error.config);
+      }
+      // 刷新失败 → 清除登录状态
+      tokenStorage.clear();
+      handleApiError(401, '登录已过期，请重新登录');
+      window.location.hash = '#/login';
+      return Promise.reject(error);
+    }
+
+    if (status === 401) {
       handleApiError(401, '登录已过期');
-    } else if (error.response?.status === 400) {
-      // 参数校验失败 → 提取后端返回的具体原因
-      const msg =
-        (error.response.data as { message?: string })?.message ||
-        '请求参数错误';
+    } else if (status === 400) {
+      const msg = data?.message || '请求参数错误';
       alert(msg);
     } else if (!error.response) {
-      // 网络错误
       alert('网络连接失败，请检查网络');
-    } else if (error.response.status >= 500) {
+    } else if (status && status >= 500) {
       handleApiError(500);
     }
     return Promise.reject(error);

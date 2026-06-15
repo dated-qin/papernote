@@ -88,6 +88,7 @@ func main() {
 			authGroup.POST("/send-code", authHandler.SendCode)
 			authGroup.POST("/verify-code", authHandler.VerifyCode)
 			authGroup.POST("/reset-password", authHandler.ResetPassword)
+			authGroup.POST("/refresh", authHandler.RefreshToken)
 	}
 
 	// ===================== 需认证路由 =====================

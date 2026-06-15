@@ -156,6 +156,23 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
 }
 
+// ---------- POST /api/auth/refresh ----------
+
+func (h *Handler) RefreshToken(c *gin.Context) {
+	var req RefreshReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+
+	resp, err := h.svc.RefreshToken(req.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 40101, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": resp})
+}
+
 // ---------- POST /api/auth/send-code ----------
 
 func (h *Handler) SendCode(c *gin.Context) {
