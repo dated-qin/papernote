@@ -148,6 +148,9 @@ func (h *Hub) routeMessage(c *Client, env Envelope) {
 	case "sync_history":
 		h.handleSyncHistory(c, env)
 
+	case "reaction":
+		h.handleReaction(c, env)
+
 	default:
 		c.sendJSON(Envelope{Action: "error", Data: map[string]interface{}{
 			"message": "unknown action: " + env.Action,
@@ -294,6 +297,100 @@ func (h *Hub) handleSyncHistory(c *Client, env Envelope) {
 		"messages": messages,
 		"last_seq": lastSeqI,
 	}})
+}
+
+// ---------- reaction 处理 ----------
+
+func (h *Hub) handleReaction(c *Client, env Envelope) {
+	data := env.Data
+	msgID := getInt64(data, "message_id")
+	emoji := getString(data, "emoji")
+	action := getString(data, "action") // "add" | "remove"
+	if msgID == 0 || emoji == "" || (action != "add" && action != "remove") {
+		c.sendJSON(Envelope{Action: "error", Data: map[string]interface{}{
+			"message": "参数错误",
+		}})
+		return
+	}
+
+	// 获取消息的会话 ID 并校验成员身份
+	var convID int64
+	if err := h.db.Table("messages m").
+		Select("m.conversation_id").
+		Joins("JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?", c.userID).
+		Where("m.id = ?", msgID).
+		Pluck("conversation_id", &convID).Error; err != nil || convID == 0 {
+		c.sendJSON(Envelope{Action: "error", Data: map[string]interface{}{
+			"message": "消息不存在或无权操作",
+		}})
+		return
+	}
+
+	if action == "add" {
+		h.db.Exec(`INSERT INTO message_reactions (message_id, user_id, emoji) VALUES (?, ?, ?) ON CONFLICT (message_id, user_id, emoji) DO NOTHING`,
+			msgID, c.userID, emoji)
+	} else {
+		h.db.Where("message_id = ? AND user_id = ? AND emoji = ?", msgID, c.userID, emoji).
+			Delete(&MessageReaction{})
+	}
+
+	// 查询更新后的 reactions
+	reactions := h.getReactions(msgID)
+
+	// 广播给会话所有成员
+	h.broadcastToConversation(convID, Envelope{
+		Action: "reaction_updated",
+		Data: map[string]interface{}{
+			"message_id": msgID,
+			"reactions":  reactions,
+		},
+	})
+}
+
+type MessageReaction struct {
+	ID        int64  `gorm:"primaryKey;column:id"`
+	MessageID int64  `gorm:"column:message_id"`
+	UserID    int64  `gorm:"column:user_id"`
+	Emoji     string `gorm:"column:emoji"`
+}
+
+func (MessageReaction) TableName() string { return "message_reactions" }
+
+func (h *Hub) getReactions(msgID int64) []map[string]interface{} {
+	type row struct {
+		Emoji  string `gorm:"column:emoji"`
+		UserID int64  `gorm:"column:user_id"`
+	}
+	var rows []row
+	h.db.Table("message_reactions").
+		Select("emoji, user_id").
+		Where("message_id = ?", msgID).
+		Order("created_at ASC").
+		Find(&rows)
+
+	m := make(map[string][]int64)
+	for _, r := range rows {
+		m[r.Emoji] = append(m[r.Emoji], r.UserID)
+	}
+	reactions := make([]map[string]interface{}, 0, len(m))
+	for _, emoji := range []string{"👍", "❤️", "😂", "😮", "😢", "🙏"} {
+		if ids, ok := m[emoji]; ok {
+			reactions = append(reactions, map[string]interface{}{"emoji": emoji, "user_ids": ids})
+		}
+	}
+	for emoji, ids := range m {
+		found := false
+		for _, r := range reactions {
+			if r["emoji"] == emoji {
+				found = true
+				break
+			}
+		}
+		if !found {
+			reactions = append(reactions, map[string]interface{}{"emoji": emoji, "user_ids": ids})
+		}
+	}
+	return reactions
 }
 
 // ---------- 广播 ----------

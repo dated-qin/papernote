@@ -33,6 +33,23 @@ type SendMsgReq struct {
 	MentionIDs     []string `json:"mention_ids"`
 }
 
+// ---------- Reaction ----------
+
+type MessageReaction struct {
+	ID        int64     `gorm:"primaryKey;column:id" json:"id"`
+	MessageID int64     `gorm:"column:message_id"    json:"message_id"`
+	UserID    int64     `gorm:"column:user_id"       json:"user_id"`
+	Emoji     string    `gorm:"column:emoji"         json:"emoji"`
+	CreatedAt time.Time `gorm:"column:created_at"    json:"created_at"`
+}
+
+func (MessageReaction) TableName() string { return "message_reactions" }
+
+type ReactionItem struct {
+	Emoji   string  `json:"emoji"`
+	UserIDs []int64 `json:"user_ids"`
+}
+
 // ---------- DTO ----------
 
 type HistoryQuery struct {
@@ -51,18 +68,19 @@ type ThreadQuery struct {
 }
 
 type MessageResp struct {
-	ID             int64    `json:"id"`
-	ConversationID int64    `json:"conversation_id"`
-	SenderID       int64    `json:"sender_id"`
-	MsgType        int16    `json:"msg_type"`
-	Content        string   `json:"content"`
-	FileID         *int64   `json:"file_id"`
-	ReplyTo        *int64   `json:"reply_to"`
-	ThreadRootID   *int64   `json:"thread_root_id"`
-	ReplyCount     int      `json:"reply_count"`
-	MentionIDs     []string `json:"mention_ids"`
-	Status         int16    `json:"status"`
-	CreatedAt      string   `json:"created_at"`
+	ID             int64          `json:"id"`
+	ConversationID int64          `json:"conversation_id"`
+	SenderID       int64          `json:"sender_id"`
+	MsgType        int16          `json:"msg_type"`
+	Content        string         `json:"content"`
+	FileID         *int64         `json:"file_id"`
+	ReplyTo        *int64         `json:"reply_to"`
+	ThreadRootID   *int64         `json:"thread_root_id"`
+	ReplyCount     int            `json:"reply_count"`
+	MentionIDs     []string       `json:"mention_ids"`
+	Status         int16          `json:"status"`
+	CreatedAt      string         `json:"created_at"`
+	Reactions      []ReactionItem `json:"reactions"`
 }
 
 type SearchMessageResp struct {

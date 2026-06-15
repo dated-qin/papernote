@@ -138,6 +138,8 @@ func main() {
 			messages.GET("/:id", msgHandler.Get)
 			messages.PUT("/:id/recall", msgHandler.Recall)
 			messages.GET("/:id/thread", msgHandler.GetThread)
+			messages.POST("/:id/reactions", msgHandler.AddReaction)
+			messages.DELETE("/:id/reactions/:emoji", msgHandler.RemoveReaction)
 		}
 
 		// 文件

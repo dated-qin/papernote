@@ -117,3 +117,53 @@ func (h *Handler) GetThread(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"messages": msgs}})
 }
+
+// ---------- POST /api/messages/:id/reactions ----------
+
+func (h *Handler) AddReaction(c *gin.Context) {
+	uid := userID(c)
+	msgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的消息ID"})
+		return
+	}
+
+	var req struct {
+		Emoji string `json:"emoji"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Emoji == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少 emoji 参数"})
+		return
+	}
+
+	reactions, err := h.svc.AddReaction(uid, msgID, req.Emoji)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"reactions": reactions}})
+}
+
+// ---------- DELETE /api/messages/:id/reactions/:emoji ----------
+
+func (h *Handler) RemoveReaction(c *gin.Context) {
+	uid := userID(c)
+	msgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的消息ID"})
+		return
+	}
+
+	emoji := c.Param("emoji")
+	if emoji == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少 emoji 参数"})
+		return
+	}
+
+	reactions, err := h.svc.RemoveReaction(uid, msgID, emoji)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"reactions": reactions}})
+}

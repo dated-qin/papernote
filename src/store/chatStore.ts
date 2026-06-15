@@ -11,6 +11,7 @@ import { isElectron } from '../utils/platform';
 import type {
   ChatStore,
   Message,
+  Reaction,
   User,
   Conversation,
   FriendRequest,
@@ -84,7 +85,25 @@ function apiToMessage(raw: Record<string, unknown>): Message {
     threadRootId: raw.thread_root_id ? String(raw.thread_root_id) : undefined,
     replyCount: (raw.reply_count as number) ?? 0,
     mentionIds: apiToStringArray(raw.mention_ids),
+    reactions: apiToReactions(raw.reactions),
   };
+}
+
+/** API reactions 数组 → 前端 Reaction[] */
+function apiToReactions(raw: unknown): Reaction[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const reactions: Reaction[] = [];
+  for (const item of raw) {
+    const r = item as Record<string, unknown>;
+    const emoji = r.emoji as string;
+    const userIds = Array.isArray(r.user_ids)
+      ? r.user_ids.map((id: unknown) => String(id))
+      : [];
+    if (emoji && userIds.length > 0) {
+      reactions.push({ emoji, userIds });
+    }
+  }
+  return reactions.length > 0 ? reactions : undefined;
 }
 
 function apiToSearchMessage(raw: Record<string, unknown>): SearchMessageResult {
@@ -785,6 +804,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const { messagesByConversation } = get();
     const msgs = messagesByConversation[convId];
     if (!msgs) return;
+
+    // 乐观更新
     set({
       messagesByConversation: {
         ...messagesByConversation,
@@ -803,12 +824,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         }),
       },
     });
+
+    // 同步到服务端
+    wsClient.send('reaction', { message_id: Number(msgId), emoji, action: 'add' });
   },
 
   removeReaction: (convId: string, msgId: string, emoji: string, userId: string) => {
     const { messagesByConversation } = get();
     const msgs = messagesByConversation[convId];
     if (!msgs) return;
+
+    // 乐观更新
     set({
       messagesByConversation: {
         ...messagesByConversation,
@@ -824,6 +850,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         }),
       },
     });
+
+    // 同步到服务端
+    wsClient.send('reaction', { message_id: Number(msgId), emoji, action: 'remove' });
   },
 
   // ===================== 线程 Actions =====================
@@ -1114,6 +1143,33 @@ wsClient.on('profile_updated', (env) => {
       }),
     }));
   }
+});
+
+// ---------- reaction_updated：消息回应实时同步 ----------
+wsClient.on('reaction_updated', (env) => {
+  const data = env.data as Record<string, unknown>;
+  const msgId = String(data.message_id ?? '');
+  const reactions = apiToReactions(data.reactions) ?? [];
+  if (!msgId) return;
+
+  useChatStore.setState((state) => {
+    // 遍历所有会话的消息列表，找到目标消息并更新 reactions
+    let found = false;
+    const updated: Record<string, Message[]> = {};
+    for (const convId of Object.keys(state.messagesByConversation)) {
+      const msgs = state.messagesByConversation[convId];
+      if (!msgs) continue;
+      const idx = msgs.findIndex((m) => m.id === msgId);
+      if (idx === -1) continue;
+      found = true;
+      updated[convId] = msgs.map((m, i) =>
+        i === idx ? { ...m, reactions: reactions.length > 0 ? reactions : undefined } : m,
+      );
+      break;
+    }
+    if (!found) return state;
+    return { messagesByConversation: { ...state.messagesByConversation, ...updated } };
+  });
 });
 
 // ---------- 桌面通知点击：显示主窗口并跳转到对应会话 ----------

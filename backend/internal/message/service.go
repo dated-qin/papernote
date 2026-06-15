@@ -21,6 +21,83 @@ func NewService(db *gorm.DB, rdb *redis.Client) *Service {
 	return &Service{db: db, rdb: rdb}
 }
 
+// ---------- Reaction ----------
+
+func (s *Service) AddReaction(userID, msgID int64, emoji string) ([]ReactionItem, error) {
+	// 校验消息存在且用户是该会话成员
+	var msg Message
+	if err := s.db.Table("messages m").
+		Select("m.*").
+		Joins("JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?", userID).
+		Where("m.id = ?", msgID).
+		First(&msg).Error; err != nil {
+		return nil, errors.New("消息不存在或无权操作")
+	}
+
+	// INSERT ... ON CONFLICT DO NOTHING（防重复）
+	s.db.Exec(`INSERT INTO message_reactions (message_id, user_id, emoji) VALUES (?, ?, ?) ON CONFLICT (message_id, user_id, emoji) DO NOTHING`,
+		msgID, userID, emoji)
+
+	return s.GetReactions(msgID)
+}
+
+func (s *Service) RemoveReaction(userID, msgID int64, emoji string) ([]ReactionItem, error) {
+	var msg Message
+	if err := s.db.Table("messages m").
+		Select("m.*").
+		Joins("JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?", userID).
+		Where("m.id = ?", msgID).
+		First(&msg).Error; err != nil {
+		return nil, errors.New("消息不存在或无权操作")
+	}
+
+	s.db.Where("message_id = ? AND user_id = ? AND emoji = ?", msgID, userID, emoji).
+		Delete(&MessageReaction{})
+
+	return s.GetReactions(msgID)
+}
+
+func (s *Service) GetReactions(msgID int64) ([]ReactionItem, error) {
+	type row struct {
+		Emoji  string `gorm:"column:emoji"`
+		UserID int64  `gorm:"column:user_id"`
+	}
+	var rows []row
+	if err := s.db.Table("message_reactions").
+		Select("emoji, user_id").
+		Where("message_id = ?", msgID).
+		Order("created_at ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	// 按 emoji 分组
+	m := make(map[string][]int64)
+	for _, r := range rows {
+		m[r.Emoji] = append(m[r.Emoji], r.UserID)
+	}
+	items := make([]ReactionItem, 0, len(m))
+	for _, emoji := range []string{"👍", "❤️", "😂", "😮", "😢", "🙏"} {
+		if ids, ok := m[emoji]; ok {
+			items = append(items, ReactionItem{Emoji: emoji, UserIDs: ids})
+		}
+	}
+	// 追加非预定义 emoji
+	for emoji, ids := range m {
+		found := false
+		for _, item := range items {
+			if item.Emoji == emoji {
+				found = true
+				break
+			}
+		}
+		if !found {
+			items = append(items, ReactionItem{Emoji: emoji, UserIDs: ids})
+		}
+	}
+	return items, nil
+}
+
 // ---------- 历史消息 ----------
 
 func (s *Service) GetHistory(convID int64, q HistoryQuery) ([]MessageResp, error) {
@@ -47,7 +124,7 @@ func (s *Service) GetHistory(convID int64, q HistoryQuery) ([]MessageResp, error
 	// 反转顺序（前端期望升序）
 	resp := make([]MessageResp, len(msgs))
 	for i, m := range msgs {
-		resp[len(msgs)-1-i] = toResp(m)
+		resp[len(msgs)-1-i] = s.toFullResp(m)
 	}
 	return resp, nil
 }
@@ -64,7 +141,7 @@ func (s *Service) GetMessage(userID, msgID int64) (*MessageResp, error) {
 		return nil, err
 	}
 
-	resp := toResp(msg)
+	resp := s.toFullResp(msg)
 	return &resp, nil
 }
 
@@ -122,7 +199,7 @@ func (s *Service) SendMessage(senderID int64, req SendMsgReq) (*MessageResp, err
 		return nil, err
 	}
 
-	resp := toResp(msg)
+	resp := s.toFullResp(msg)
 	return &resp, nil
 }
 
@@ -185,7 +262,7 @@ func (s *Service) SearchMessages(userID int64, q SearchQuery) ([]SearchMessageRe
 	resp := make([]SearchMessageResp, len(rows))
 	for i, r := range rows {
 		resp[i] = SearchMessageResp{
-			MessageResp:      toResp(r.Message),
+			MessageResp:      s.toFullResp(r.Message),
 			ConversationName: r.ConversationName,
 			SenderName:       r.SenderName,
 		}
@@ -216,7 +293,7 @@ func (s *Service) GetThreadMessages(rootMsgID int64, q ThreadQuery) ([]MessageRe
 
 	resp := make([]MessageResp, len(msgs))
 	for i, m := range msgs {
-		resp[i] = toResp(m)
+		resp[i] = s.toFullResp(m)
 	}
 	return resp, nil
 }
@@ -238,6 +315,13 @@ func toResp(m Message) MessageResp {
 		Status:         m.MsgStatus,
 		CreatedAt:      m.CreatedAt.Format(time.RFC3339),
 	}
+}
+
+func (s *Service) toFullResp(m Message) MessageResp {
+	r := toResp(m)
+	reactions, _ := s.GetReactions(m.ID)
+	r.Reactions = reactions
+	return r
 }
 
 func (s *Service) allocateSeq(userID int64, msgID int64) {
