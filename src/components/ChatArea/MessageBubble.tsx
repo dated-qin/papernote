@@ -200,7 +200,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
                     setShowActionsMenu(false);
                   }} />
                 )}
-                {message.type === 'text' && conversations.filter((c) => c.id !== message.conversationId).length > 0 && (
+                {conversations.filter((c) => c.id !== message.conversationId).length > 0 && (
                   <ForwardMenu
                     conversations={conversations.filter((c) => c.id !== message.conversationId)}
                     onForward={(targetConvId) => {
@@ -209,7 +209,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
                     }}
                   />
                 )}
-                {isOwn && message.type === 'text' && message.status !== 'failed' && (
+                {isOwn && message.status !== 'failed' && (
                   <MenuItem label="↩ 撤回" onClick={() => {
                     void recallMessage(message.id);
                     setShowActionsMenu(false);
