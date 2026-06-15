@@ -10,11 +10,20 @@ import (
 )
 
 type Handler struct {
-	svc *Service
+	svc      *Service
+	notifier MessageNotifier
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+type MessageNotifier interface {
+	NotifyConversation(convID int64, action string, data map[string]interface{})
+}
+
+func NewHandler(svc *Service, notifier ...MessageNotifier) *Handler {
+	h := &Handler{svc: svc}
+	if len(notifier) > 0 {
+		h.notifier = notifier[0]
+	}
+	return h
 }
 
 func userID(c *gin.Context) int64 {
@@ -78,6 +87,19 @@ func (h *Handler) Recall(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
 		return
 	}
+
+	// 广播撤回状态给会话所有成员
+	if h.notifier != nil {
+		convID := h.svc.GetConversationID(msgID)
+		if convID > 0 {
+			h.notifier.NotifyConversation(convID, "msg_status", map[string]interface{}{
+				"message_id":      msgID,
+				"conversation_id": convID,
+				"status":          1,
+			})
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
 }
 

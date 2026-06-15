@@ -46,7 +46,6 @@ func main() {
 	convHandler := conversation.NewHandler(convSvc)
 
 	msgSvc := message.NewService(database, rdb)
-	msgHandler := message.NewHandler(msgSvc)
 
 	var ossClient file.OSSClient
 	if cfg.OSSAccessKey != "" && cfg.OSSSecretKey != "" {
@@ -63,6 +62,7 @@ func main() {
 	// ---------- WebSocket Hub ----------
 	hub := ws.NewHub(database, rdb, cfg.JWTSecret, msgSender)
 	go hub.Run()
+	msgHandler := message.NewHandler(msgSvc, &wsMsgNotifier{hub: hub})
 
 	groupSvc := group.NewService(database, rdb, &wsGroupNotifier{hub: hub})
 	groupHandler := group.NewHandler(groupSvc)
@@ -229,5 +229,13 @@ type wsGroupNotifier struct {
 }
 
 func (n *wsGroupNotifier) NotifyConversation(convID int64, action string, data map[string]interface{}) {
+	n.hub.BroadcastToConversation(convID, ws.Envelope{Action: action, Data: data})
+}
+
+type wsMsgNotifier struct {
+	hub *ws.Hub
+}
+
+func (n *wsMsgNotifier) NotifyConversation(convID int64, action string, data map[string]interface{}) {
 	n.hub.BroadcastToConversation(convID, ws.Envelope{Action: action, Data: data})
 }

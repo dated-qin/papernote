@@ -710,11 +710,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
   },
 
-  /** 撤回消息：PUT /api/messages/:id/recall（2分钟限制） */
+  /** 撤回消息：PUT /api/messages/:id/recall（2分钟限制，仅自己的消息） */
   recallMessage: async (msgId: string): Promise<void> => {
-    const res = await http.put<Record<string, never>>(`/api/messages/${msgId}/recall`);
-    if (res.code !== 0) {
-      throw new Error(res.message as string ?? '撤回失败');
+    try {
+      const res = await http.put<Record<string, never>>(`/api/messages/${msgId}/recall`);
+      if (res.code !== 0) {
+        alert((res.message as string) || '撤回失败');
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '撤回失败');
     }
   },
 

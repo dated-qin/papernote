@@ -203,6 +203,13 @@ func (s *Service) SendMessage(senderID int64, req SendMsgReq) (*MessageResp, err
 	return &resp, nil
 }
 
+// GetConversationID 获取消息所属会话 ID（供 handler 使用）
+func (s *Service) GetConversationID(msgID int64) int64 {
+	var convID int64
+	s.db.Table("messages").Select("conversation_id").Where("id = ?", msgID).Pluck("conversation_id", &convID)
+	return convID
+}
+
 // ---------- 撤回消息 ----------
 
 func (s *Service) RecallMessage(userID, msgID int64) error {

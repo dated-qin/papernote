@@ -24,7 +24,7 @@ export function handleApiError(code: number, msg?: string): void {
       alert(msg || '操作冲突');
       break;
     case 500:
-      alert('服务器繁忙，请稍后重试');
+      alert(msg || '服务器繁忙，请稍后重试');
       break;
     default:
       if (msg) alert(msg);
