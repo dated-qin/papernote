@@ -286,6 +286,8 @@ export interface ChatStore {
   clearDraft: (convId: string) => void;
   loadDrafts: () => void;
   deleteConversationLocally: (convId: string) => void;
+  restoreConversation: (convId: string) => void;
+  hiddenConversationIds: string[];
   clearHighlightedMessage: () => void;
   addMessage: (message: Message) => void;
   addMessages: (messages: Message[]) => void;

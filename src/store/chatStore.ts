@@ -173,6 +173,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   activeQuote: null,
   activeThreadRootId: null,
   lightbox: null,
+  hiddenConversationIds: [],
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
   inputDraft: {},
   typingUsers: {},
@@ -278,9 +279,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         '/api/conversations',
       );
       if (res.code === 0) {
-        const conversations: Conversation[] = (res.data.conversations ?? []).map(
-          apiToConversation,
-        );
+        const hiddenIds = get().hiddenConversationIds;
+        const conversations: Conversation[] = (res.data.conversations ?? [])
+          .map(apiToConversation)
+          .filter((c) => !hiddenIds.includes(c.id));
         set({ conversations });
       }
     } catch {
@@ -522,11 +524,28 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   /** 本地隐藏会话（删除会话入口） */
   deleteConversationLocally: (convId: string) => {
-    set((state) => ({
-      conversations: state.conversations.filter((c) => c.id !== convId),
-      activeConversationId:
-        state.activeConversationId === convId ? null : state.activeConversationId,
-    }));
+    set((state) => {
+      const hidden = [...state.hiddenConversationIds, convId];
+      // 持久化到 localStorage
+      try { localStorage.setItem('hidden_conv_ids', JSON.stringify(hidden)); } catch { /* ignore */ }
+      return {
+        conversations: state.conversations.filter((c) => c.id !== convId),
+        activeConversationId:
+          state.activeConversationId === convId ? null : state.activeConversationId,
+        hiddenConversationIds: hidden,
+      };
+    });
+  },
+
+  /** 恢复隐藏的会话 */
+  restoreConversation: (convId: string) => {
+    set((state) => {
+      const hidden = state.hiddenConversationIds.filter((id) => id !== convId);
+      try { localStorage.setItem('hidden_conv_ids', JSON.stringify(hidden)); } catch { /* ignore */ }
+      return { hiddenConversationIds: hidden };
+    });
+    // 重新拉取该会话信息
+    get().fetchConversations();
   },
 
   /** 保存会话草稿到内存 + localStorage */
@@ -1006,6 +1025,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 // 加载持久化的草稿
 useChatStore.getState().loadDrafts();
 
+// 加载隐藏会话列表
+try {
+  const raw = localStorage.getItem('hidden_conv_ids');
+  if (raw) {
+    const ids = JSON.parse(raw) as string[];
+    if (Array.isArray(ids)) useChatStore.setState({ hiddenConversationIds: ids });
+  }
+} catch { /* ignore */ }
+
 // 在模块加载时注册，确保只注册一次
 
 /** 接收新消息：服务端通过 new_msg 推送 */
@@ -1043,7 +1071,13 @@ wsClient.on('new_msg', (env) => {
     }
   }
 
-  useChatStore.getState().addMessage(message);
+  // 如果该会话被隐藏，自动恢复
+  const currentStore = useChatStore.getState();
+  if (currentStore.hiddenConversationIds.includes(message.conversationId)) {
+    currentStore.restoreConversation(message.conversationId);
+  }
+
+  currentStore.addMessage(message);
 
   // 桌面通知（Electron 环境 + 窗口不在前台 + 非活跃会话）
   if (isElectron() && !document.hasFocus()) {
