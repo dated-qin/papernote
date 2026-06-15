@@ -182,19 +182,33 @@ export const LoginPage: React.FC = () => {
           {isLoading ? '登录中…' : '登录'}
         </button>
 
-        {/* 注册链接 */}
-        <Link
-          to="/register"
-          style={styles.linkText}
-          onMouseEnter={(e) => {
-            (e.target as HTMLAnchorElement).style.textDecoration = 'underline';
-          }}
-          onMouseLeave={(e) => {
-            (e.target as HTMLAnchorElement).style.textDecoration = 'none';
-          }}
-        >
-          没有账号？去注册
-        </Link>
+        {/* 忘记密码 + 注册链接 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+          <Link
+            to="/forgot-password"
+            style={styles.linkText}
+            onMouseEnter={(e) => {
+              (e.target as HTMLAnchorElement).style.textDecoration = 'underline';
+            }}
+            onMouseLeave={(e) => {
+              (e.target as HTMLAnchorElement).style.textDecoration = 'none';
+            }}
+          >
+            忘记密码？
+          </Link>
+          <Link
+            to="/register"
+            style={styles.linkText}
+            onMouseEnter={(e) => {
+              (e.target as HTMLAnchorElement).style.textDecoration = 'underline';
+            }}
+            onMouseLeave={(e) => {
+              (e.target as HTMLAnchorElement).style.textDecoration = 'none';
+            }}
+          >
+            没有账号？去注册
+          </Link>
+        </div>
       </div>
     </div>
   );

@@ -167,6 +167,76 @@ func (s *Service) ChangePassword(userID int64, req ChangePasswordReq) error {
 	return s.db.Model(&user).Update("password_hash", string(hash)).Error
 }
 
+// ---------- 密码找回 ----------
+
+func (s *Service) SendResetCode(target string) error {
+	// 查找用户
+	var user User
+	if err := s.db.Where("phone = ? OR email = ?", target, target).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("该手机号或邮箱未注册")
+		}
+		return err
+	}
+
+	// 频控：60s 内只能发送一次
+	ctx := context.Background()
+	rateKey := "reset_code_rate:" + target
+	if exists, _ := s.rdb.Exists(ctx, rateKey).Result(); exists > 0 {
+		return errors.New("验证码已发送，请60秒后再试")
+	}
+
+	// 生成 6 位验证码
+	code := fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
+	codeKey := "reset_code:" + target
+
+	// 存储到 Redis，5 分钟过期
+	s.rdb.Set(ctx, codeKey, code, 5*time.Minute)
+	s.rdb.Set(ctx, rateKey, "1", 60*time.Second)
+
+	// 开发模式：打印验证码到日志
+	fmt.Printf("[DEV] 密码找回验证码 [%s]: %s (5分钟内有效)\n", target, code)
+	return nil
+}
+
+func (s *Service) VerifyResetCode(target, code string) error {
+	ctx := context.Background()
+	codeKey := "reset_code:" + target
+	stored, err := s.rdb.Get(ctx, codeKey).Result()
+	if err != nil || stored != code {
+		return errors.New("验证码错误或已过期")
+	}
+	return nil
+}
+
+func (s *Service) ResetPassword(target, code, newPassword string) error {
+	// 先验证验证码
+	if err := s.VerifyResetCode(target, code); err != nil {
+		return err
+	}
+
+	// 查找用户
+	var user User
+	if err := s.db.Where("phone = ? OR email = ?", target, target).First(&user).Error; err != nil {
+		return errors.New("用户不存在")
+	}
+
+	// 加密新密码
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
+	if err != nil {
+		return fmt.Errorf("密码加密失败: %w", err)
+	}
+
+	if err := s.db.Model(&user).Update("password_hash", string(hash)).Error; err != nil {
+		return err
+	}
+
+	// 清除验证码
+	ctx := context.Background()
+	s.rdb.Del(ctx, "reset_code:"+target)
+	return nil
+}
+
 // ---------- JWT ----------
 
 func (s *Service) generateToken(userID int64, username, role string) (string, error) {

@@ -11,6 +11,7 @@ import { App } from './App';
 import { AuthGuard } from './components/AuthGuard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './pages/LoginPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { FriendsPage } from './pages/FriendsPage';
 import { GroupSettingsPage } from './pages/GroupSettingsPage';
@@ -29,6 +30,10 @@ const router = createHashRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
   },
   {
     path: '/register',

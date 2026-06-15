@@ -41,6 +41,21 @@ type ChangePasswordReq struct {
 	NewPassword string `json:"new_password" binding:"required,min=6,max=64"`
 }
 
+type SendCodeReq struct {
+	Target string `json:"target" binding:"required"` // 手机号或邮箱
+}
+
+type VerifyCodeReq struct {
+	Target string `json:"target" binding:"required"`
+	Code   string `json:"code" binding:"required,len=6"`
+}
+
+type ResetPasswordReq struct {
+	Target       string `json:"target" binding:"required"`
+	Code         string `json:"code" binding:"required,len=6"`
+	NewPassword  string `json:"new_password" binding:"required,min=6,max=64"`
+}
+
 type AuthResp struct {
 	UserID int64  `json:"user_id"`
 	Token  string `json:"token"`

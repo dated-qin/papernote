@@ -156,6 +156,54 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
 }
 
+// ---------- POST /api/auth/send-code ----------
+
+func (h *Handler) SendCode(c *gin.Context) {
+	var req SendCodeReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写手机号或邮箱"})
+		return
+	}
+
+	if err := h.svc.SendResetCode(req.Target); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "验证码已发送"})
+}
+
+// ---------- POST /api/auth/verify-code ----------
+
+func (h *Handler) VerifyCode(c *gin.Context) {
+	var req VerifyCodeReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+
+	if err := h.svc.VerifyResetCode(req.Target, req.Code); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "验证通过"})
+}
+
+// ---------- POST /api/auth/reset-password ----------
+
+func (h *Handler) ResetPassword(c *gin.Context) {
+	var req ResetPasswordReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+
+	if err := h.svc.ResetPassword(req.Target, req.Code, req.NewPassword); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "密码重置成功，请登录"})
+}
+
 // ---------- helper ----------
 
 func isConflict(err error) bool {
