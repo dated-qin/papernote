@@ -13,9 +13,10 @@ import type { Announcement } from '../../types';
 
 interface ChatAreaProps {
   onOpenSearch?: (conversationId?: string) => void;
+  onToggleFiles?: () => void;
 }
 
-export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
+export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch, onToggleFiles }) => {
   const navigate = useNavigate();
   const activeConversationId = useChatStore((s) => s.activeConversationId);
   const conversation = useChatStore((s) => s.getActiveConversation());
@@ -62,7 +63,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
         minWidth: 0, // 防止 flex 子元素溢出
       }}
     >
-      <ChatHeader onOpenSearch={onOpenSearch} />
+      <ChatHeader onOpenSearch={onOpenSearch} onToggleFiles={onToggleFiles} />
       {latestAnnouncement && (
         <AnnouncementBar
           announcement={latestAnnouncement}
@@ -152,7 +153,7 @@ const AnnouncementBar: React.FC<{
 );
 
 // ============ 聊天头部 ============
-const ChatHeader: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
+const ChatHeader: React.FC<ChatAreaProps> = ({ onOpenSearch, onToggleFiles }) => {
   const navigate = useNavigate();
   const conversation = useChatStore((s) => s.getActiveConversation());
 
@@ -216,6 +217,23 @@ const ChatHeader: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
             }}
           >
             👥
+          </button>
+        )}
+        {onToggleFiles && (
+          <button
+            title="文件面板"
+            onClick={onToggleFiles}
+            style={{
+              ...headerIconStyle,
+              border: 'none',
+              background: 'none',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-family)',
+              fontSize: 16,
+            }}
+          >
+            📎
           </button>
         )}
         <button

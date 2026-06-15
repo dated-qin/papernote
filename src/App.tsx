@@ -11,6 +11,7 @@ import { WorkspaceSidebar } from './components/WorkspaceSidebar';
 import { ConversationSidebar } from './components/ConversationSidebar';
 import { ChatArea } from './components/ChatArea';
 import { ThreadPanel } from './components/ThreadPanel';
+import { FilesPanel } from './components/FilesPanel';
 import { StatusBar } from './components/StatusBar';
 import { SearchDialog } from './components/SearchDialog';
 
@@ -21,6 +22,8 @@ export const App: React.FC = () => {
   const wsStatus = useChatStore((s) => s.wsStatus);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchScopeId, setSearchScopeId] = useState<string | null>(null);
+  const [showFilesPanel, setShowFilesPanel] = useState(false);
+  const activeThreadRootId = useChatStore((s) => s.activeThreadRootId);
 
   // 初始化主题 + 加载真实会话
   useEffect(() => {
@@ -102,8 +105,8 @@ export const App: React.FC = () => {
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <WorkspaceSidebar />
         <ConversationSidebar />
-        <ChatArea onOpenSearch={openSearch} />
-        <ThreadPanel />
+        <ChatArea onOpenSearch={openSearch} onToggleFiles={() => setShowFilesPanel(!showFilesPanel)} />
+        {activeThreadRootId ? <ThreadPanel /> : showFilesPanel ? <FilesPanel /> : null}
       </div>
 
       <StatusBar connectionStatus={wsStatus} lastSync="刚刚" />
