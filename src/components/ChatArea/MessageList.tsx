@@ -79,66 +79,53 @@ export const MessageList: React.FC = () => {
   const fetchHistory = useChatStore((s) => s.fetchHistory);
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const prevLengthRef = useRef(messages.length);
   const isLoadingMore = useRef(false);
   const hasMore = useRef(true);
-  const firstLoad = useRef(true);
   const oldestIdRef = useRef('');
 
   const blocks = groupMessages(messages);
 
-  // 新消息到达自动滚到底部（若用户已在底部附近）
-  const isNearBottom = useCallback(() => {
-    const el = listRef.current;
-    if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-  }, []);
-
+  // 切换会话或收到新消息时判断是否需要滚到底部
   useEffect(() => {
-    if (messages.length > prevLengthRef.current && isNearBottom()) {
+    const el = listRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (atBottom) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-    prevLengthRef.current = messages.length;
-  }, [messages.length, isNearBottom]);
+  }, [messages]);
 
-  // 切换会话时重置状态
+  // 切换会话时：重置 + 滚到底部
   useEffect(() => {
     hasMore.current = true;
     oldestIdRef.current = '';
-    firstLoad.current = true;
     isLoadingMore.current = false;
-  }, [activeConversationId]);
-
-  // 初始加载滚到底部
-  useEffect(() => {
-    if (firstLoad.current && messages.length > 0) {
+    // 等 DOM 渲染完再滚
+    requestAnimationFrame(() => {
       bottomRef.current?.scrollIntoView({ behavior: 'auto' });
-      firstLoad.current = false;
-    }
-  }, [messages.length]);
+    });
+  }, [activeConversationId]);
 
   // 向上滚动加载更早消息
   const handleScroll = useCallback(() => {
     const el = listRef.current;
     if (!el || isLoadingMore.current || !hasMore.current) return;
-    if (el.scrollTop <= 0 && messages.length > 0) {
-      const oldest = messages[0];
-      if (oldest && oldest.id !== oldestIdRef.current && activeConversationId) {
-        oldestIdRef.current = oldest.id;
-        isLoadingMore.current = true;
-        const prevLen = messages.length;
-        void fetchHistory(activeConversationId, oldest.id).finally(() => {
-          isLoadingMore.current = false;
-          const fresh = useChatStore.getState().getActiveMessages();
-          if (fresh.length === prevLen) {
-            hasMore.current = false;
-          }
-        });
-      } else {
-        // 同一批消息没有再请求，已到底
+    if (el.scrollTop > 0) return;
+    const oldest = messages[0];
+    if (!oldest || !activeConversationId) return;
+    if (oldest.id === oldestIdRef.current) {
+      hasMore.current = false;
+      return;
+    }
+    oldestIdRef.current = oldest.id;
+    isLoadingMore.current = true;
+    const prevLen = messages.length;
+    void fetchHistory(activeConversationId, oldest.id).finally(() => {
+      isLoadingMore.current = false;
+      if (useChatStore.getState().getActiveMessages().length === prevLen) {
         hasMore.current = false;
       }
-    }
+    });
   }, [messages, activeConversationId, fetchHistory]);
 
   return (
