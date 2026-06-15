@@ -147,7 +147,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
           style={{
             position: 'absolute',
             top: -32,
-            [isOwn ? 'left' : 'right']: 0,
+            [isOwn ? 'right' : 'left']: 0,
             display: 'flex',
             gap: 2,
             backgroundColor: 'var(--bg-primary)',
@@ -231,7 +231,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
           style={{
             position: 'absolute',
             top: -40,
-            [isOwn ? 'left' : 'right']: 0,
+            [isOwn ? 'right' : 'left']: 0,
             zIndex: 20,
           }}
         >

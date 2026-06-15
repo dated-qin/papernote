@@ -1195,6 +1195,7 @@ wsClient.on('msg_status', (env) => {
       m.id === msgId
         ? {
             ...m,
+            type: 'text' as const,
             content: isOwn ? '你撤回了一条消息' : '对方撤回了一条消息',
             status: 'sent' as const,
           }
