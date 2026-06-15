@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useChatStore } from '../chatStore';
+import { wsClient } from '../../utils/ws';
 
 // 模拟 wsClient（避免 WebSocket 连接尝试）
 vi.mock('../../utils/ws', () => ({
@@ -31,6 +32,7 @@ vi.mock('../../utils/http', () => ({
 
 describe('chatStore', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     useChatStore.setState({
       currentUser: { id: 'u1', username: 'test', nickname: 'Test', avatarUrl: '', status: 'online' },
       activeConversationId: null,
@@ -56,6 +58,7 @@ describe('chatStore', () => {
       ],
       messagesByConversation: {},
       lastSeq: 0,
+      activeQuote: null,
     });
   });
 
@@ -134,6 +137,28 @@ describe('chatStore', () => {
       );
       const msgs = useChatStore.getState().getActiveMessages();
       expect(msgs[0].type).toBe('image');
+    });
+
+    it('should send with active quote and clear it', () => {
+      useChatStore.setState({ activeConversationId: '1' });
+      useChatStore.getState().setQuote('1', '42');
+      useChatStore.getState().sendMessage('reply');
+
+      const msgs = useChatStore.getState().getActiveMessages();
+      expect(msgs[0].quoteId).toBe('42');
+      expect(wsClient.send).toHaveBeenCalledWith(
+        'send_msg',
+        expect.objectContaining({ reply_to: 42 }),
+      );
+      expect(useChatStore.getState().activeQuote).toBeNull();
+    });
+  });
+
+  describe('quote state', () => {
+    it('should clear quote when switching conversations', () => {
+      useChatStore.getState().setQuote('1', '42');
+      useChatStore.getState().setActiveConversation('2');
+      expect(useChatStore.getState().activeQuote).toBeNull();
     });
   });
 

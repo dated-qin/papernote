@@ -132,8 +132,9 @@ func main() {
 		// 消息
 		messages := api.Group("/messages")
 		{
-			messages.PUT("/:id/recall", msgHandler.Recall)
 			messages.GET("/search", msgHandler.Search)
+			messages.GET("/:id", msgHandler.Get)
+			messages.PUT("/:id/recall", msgHandler.Recall)
 			messages.GET("/:id/thread", msgHandler.GetThread)
 		}
 

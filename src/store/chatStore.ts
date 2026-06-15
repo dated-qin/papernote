@@ -122,6 +122,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   messagesByConversation: {},
   lastSeq: 0,
   highlightedMessageId: null,
+  activeQuote: null,
   activeThreadRootId: null,
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
   inputDraft: {},
@@ -153,6 +154,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       activeConversationId: null,
       messagesByConversation: {},
       lastSeq: 0,
+      activeQuote: null,
       users: {},
       workspaces: [],
       activeWorkspaceId: '',
@@ -209,7 +211,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // ===================== 会话 Actions =====================
 
   setActiveConversation: (id: string | null) => {
-    set({ activeConversationId: id });
+    set((state) => ({
+      activeConversationId: id,
+      activeQuote:
+        state.activeQuote && state.activeQuote.conversationId !== id ? null : state.activeQuote,
+    }));
     if (id) {
       get().markAsRead(id);
     }
@@ -273,11 +279,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     msgType?: MessageType,
     mentionIds?: string[],
   ) => {
-    const { currentUser, activeConversationId, messagesByConversation } = get();
+    const {
+      currentUser,
+      activeConversationId,
+      messagesByConversation,
+      activeQuote,
+    } = get();
     if (!activeConversationId || !currentUser || !content.trim()) return;
 
     const type = msgType ?? 'text';
     const numericType = msgTypeToNum[type] ?? 0;
+    const effectiveQuoteId =
+      quoteId ??
+      (!threadRootId && activeQuote?.conversationId === activeConversationId
+        ? activeQuote.messageId
+        : undefined);
 
     const pendingMsg: Message = {
       id: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -287,7 +303,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       content: content.trim(),
       status: 'sending',
       createdAt: Date.now(),
-      quoteId,
+      quoteId: effectiveQuoteId,
       threadRootId,
       mentionIds,
     };
@@ -307,10 +323,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       conversation_id: parseInt(activeConversationId, 10),
       msg_type: numericType,
       content: pendingMsg.content,
-      reply_to: quoteId ? parseInt(quoteId, 10) : null,
+      reply_to: effectiveQuoteId ? parseInt(effectiveQuoteId, 10) : null,
       thread_root_id: threadRootId ? parseInt(threadRootId, 10) : null,
       mention_ids: mentionIds ?? [],
     });
+
+    if (effectiveQuoteId && activeQuote?.messageId === effectiveQuoteId) {
+      set({ activeQuote: null });
+    }
 
     // 5 秒超时检测
     setTimeout(() => {
@@ -340,6 +360,23 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }
   },
 
+  fetchMessage: async (messageId: string): Promise<Message | null> => {
+    const cached = Object.values(get().messagesByConversation)
+      .flat()
+      .find((message) => message.id === messageId);
+    if (cached) return cached;
+
+    try {
+      const res = await http.get<{ message: Record<string, unknown> | null }>(
+        `/api/messages/${messageId}`,
+      );
+      if (res.code !== 0 || !res.data.message) return null;
+      return apiToMessage(res.data.message);
+    } catch {
+      return null;
+    }
+  },
+
   searchMessages: async (query: string, conversationId?: string): Promise<SearchMessageResult[]> => {
     const trimmed = query.trim();
     if (!trimmed) return [];
@@ -364,6 +401,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       get().addMessages([message]);
     }
   },
+
+  setQuote: (conversationId: string, messageId: string) => {
+    set({ activeQuote: { conversationId, messageId } });
+  },
+
+  clearQuote: () => set({ activeQuote: null }),
 
   clearHighlightedMessage: () => set({ highlightedMessageId: null }),
 

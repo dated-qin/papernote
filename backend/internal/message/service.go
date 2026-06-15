@@ -52,6 +52,22 @@ func (s *Service) GetHistory(convID int64, q HistoryQuery) ([]MessageResp, error
 	return resp, nil
 }
 
+// ---------- 单条消息 ----------
+
+func (s *Service) GetMessage(userID, msgID int64) (*MessageResp, error) {
+	var msg Message
+	if err := s.db.Table("messages m").
+		Select("m.*").
+		Joins("JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?", userID).
+		Where("m.id = ?", msgID).
+		First(&msg).Error; err != nil {
+		return nil, err
+	}
+
+	resp := toResp(msg)
+	return &resp, nil
+}
+
 // ---------- 发送消息 ----------
 
 func (s *Service) SendMessage(senderID int64, req SendMsgReq) (*MessageResp, error) {

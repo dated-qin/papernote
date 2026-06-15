@@ -85,6 +85,11 @@ export interface SearchMessageResult extends Message {
   senderName: string;
 }
 
+export interface ActiveQuote {
+  conversationId: string;
+  messageId: string;
+}
+
 // ==========================================
 // 消息回应
 // ==========================================
@@ -205,6 +210,7 @@ export interface ChatStore {
   messagesByConversation: Record<string, Message[]>;
   lastSeq: number;
   highlightedMessageId: string | null;
+  activeQuote: ActiveQuote | null;
 
   // ---- 线程 ----
   activeThreadRootId: string | null;
@@ -249,8 +255,11 @@ export interface ChatStore {
     mentionIds?: string[],
   ) => void;
   fetchHistory: (conversationId: string, before?: string) => Promise<void>;
+  fetchMessage: (messageId: string) => Promise<Message | null>;
   searchMessages: (query: string, conversationId?: string) => Promise<SearchMessageResult[]>;
   jumpToMessage: (conversationId: string, messageId: string, message?: Message) => Promise<void>;
+  setQuote: (conversationId: string, messageId: string) => void;
+  clearQuote: () => void;
   clearHighlightedMessage: () => void;
   addMessage: (message: Message) => void;
   addMessages: (messages: Message[]) => void;

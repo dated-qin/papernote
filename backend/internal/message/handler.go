@@ -1,10 +1,12 @@
 package message
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type Handler struct {
@@ -39,6 +41,27 @@ func (h *Handler) GetHistory(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"messages": msgs}})
+}
+
+// ---------- GET /api/messages/:id ----------
+
+func (h *Handler) Get(c *gin.Context) {
+	msgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的消息ID"})
+		return
+	}
+
+	msg, err := h.svc.GetMessage(userID(c), msgID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"message": nil}})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "获取消息失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"message": msg}})
 }
 
 // ---------- PUT /api/messages/:id/recall ----------

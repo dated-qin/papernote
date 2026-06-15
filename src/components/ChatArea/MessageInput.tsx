@@ -7,6 +7,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { IconButton } from '../common';
 import { MentionPicker, type MentionOption } from './MentionPicker';
+import { QuotePreview } from './QuotePreview';
 import { uploadFile } from '../../utils/upload';
 import { MAX_FILE_SIZE } from '../../utils/fileUtils';
 import type { GroupMember } from '../../types';
@@ -14,6 +15,8 @@ import type { GroupMember } from '../../types';
 export const MessageInput: React.FC = () => {
   const sendMessage = useChatStore((s) => s.sendMessage);
   const activeConversationId = useChatStore((s) => s.activeConversationId);
+  const activeQuote = useChatStore((s) => s.activeQuote);
+  const clearQuote = useChatStore((s) => s.clearQuote);
   const conversation = useChatStore((s) => s.getActiveConversation());
   const currentUserId = useChatStore((s) => s.currentUser?.id ?? '');
   const getMembers = useChatStore((s) => s.getMembers);
@@ -36,6 +39,8 @@ export const MessageInput: React.FC = () => {
   const canMentionAll =
     conversation?.type === 'channel' &&
     (currentMember?.role === 'owner' || currentMember?.role === 'admin');
+  const visibleQuote =
+    activeQuote && activeQuote.conversationId === activeConversationId ? activeQuote : null;
 
   useEffect(() => {
     if (!activeConversationId) {
@@ -293,6 +298,15 @@ export const MessageInput: React.FC = () => {
       )}
 
       {/* 输入行 */}
+      {visibleQuote && (
+        <QuotePreview
+          quoteId={visibleQuote.messageId}
+          conversationId={visibleQuote.conversationId}
+          mode="bar"
+          onCancel={clearQuote}
+        />
+      )}
+
       {mentionIds.length > 0 && (
         <div style={mentionChipRowStyle}>
           {mentionIds.map((id) => (

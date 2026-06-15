@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { MessageContentRouter } from './MessageFile';
+import { QuotePreview } from './QuotePreview';
 import type { Message } from '../../types';
 
 interface MessageBubbleProps {
@@ -23,6 +24,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
   const addReaction = useChatStore((s) => s.addReaction);
   const removeReaction = useChatStore((s) => s.removeReaction);
   const openThread = useChatStore((s) => s.openThread);
+  const setQuote = useChatStore((s) => s.setQuote);
   const highlightedMessageId = useChatStore((s) => s.highlightedMessageId);
   const clearHighlightedMessage = useChatStore((s) => s.clearHighlightedMessage);
   const bubbleRef = useRef<HTMLDivElement>(null);
@@ -94,7 +96,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
       {/* 消息气泡 */}
       <div ref={bubbleRef} data-message-id={message.id} style={bubbleStyle}>
         {/* 引用回复 */}
-        {message.quoteId && <QuotePreview quoteId={message.quoteId} />}
+        {message.quoteId && (
+          <QuotePreview quoteId={message.quoteId} conversationId={message.conversationId} />
+        )}
 
         {/* 消息内容（按类型路由） */}
         <MessageContentRouter type={message.type} content={message.content} />
@@ -159,6 +163,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
           {/* 线程回复 */}
           <ToolbarButton title="在话题中回复" onClick={() => openThread(message.id)}>
             💬
+          </ToolbarButton>
+          {/* 引用回复 */}
+          <ToolbarButton
+            title="引用回复"
+            onClick={() => setQuote(message.conversationId, message.id)}
+          >
+            ↩
           </ToolbarButton>
           {/* 更多操作 (占位) */}
           <ToolbarButton title="更多" onClick={() => {}}>
@@ -269,35 +280,8 @@ const ToolbarButton: React.FC<{
   </button>
 );
 
-// ============ 引用预览 ============
-const QuotePreview: React.FC<{ quoteId: string }> = ({ quoteId }) => {
-  const messages = useChatStore((s) => s.getActiveMessages());
-  const quoted = messages.find((m) => m.id === quoteId);
-  if (!quoted) return null;
-
-  return (
-    <div
-      style={{
-        borderLeft: '3px solid var(--accent-primary)',
-        paddingLeft: 'var(--space-sm)',
-        backgroundColor: 'var(--bg-secondary)',
-        borderRadius: 'var(--radius-sm)',
-        marginBottom: 'var(--space-sm)',
-        fontSize: 'var(--font-size-sm)',
-        color: 'var(--text-secondary)',
-      }}
-    >
-      {truncate(quoted.content, 80)}
-    </div>
-  );
-};
-
 const statusStyle: React.CSSProperties = {
   fontSize: 12,
   opacity: 0.6,
   flexShrink: 0,
 };
-
-function truncate(text: string, maxLen: number): string {
-  return text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
-}

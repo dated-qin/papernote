@@ -117,6 +117,26 @@ export const handlers = [
     });
   }),
 
+  // GET /api/messages/:id
+  http.get(`${API}/api/messages/:id`, ({ params }) => {
+    return HttpResponse.json({
+      code: 0,
+      data: {
+        message: {
+          id: Number(params.id),
+          conversation_id: 1,
+          sender_id: 2,
+          msg_type: 0,
+          content: '被引用的消息',
+          reply_to: null,
+          thread_root_id: null,
+          status: 0,
+          created_at: '2026-06-14T09:02:00Z',
+        },
+      },
+    });
+  }),
+
   // POST /api/conversations/dm
   http.post(`${API}/api/conversations/dm`, () => {
     return HttpResponse.json({ code: 0, data: { id: 3 } });
