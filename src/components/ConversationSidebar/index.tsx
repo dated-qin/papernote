@@ -536,7 +536,7 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
       (id) => id === currentUserId || id === 'all',
     );
   const lastMsgPreview = conversation.lastMessage
-    ? truncate(formatMentionPreview(conversation.lastMessage.content), 30)
+    ? formatLastMsg(conversation.lastMessage)
     : '暂无消息';
 
   return (
@@ -602,7 +602,7 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
               maxWidth: 120,
             }}
           >
-            {conversation.name}
+            {conversation.type === 'channel' ? '# ' : ''}{conversation.name}
           </span>
           {conversation.isMuted && (
             <span
@@ -649,4 +649,12 @@ function truncate(text: string, maxLen: number): string {
 
 function formatMentionPreview(content: string): string {
   return content.replace(/<@(all|\d+)\|([^>]+)>/g, '@$2');
+}
+
+function formatLastMsg(msg: { type: string; content: string }): string {
+  if (msg.type === 'image') return '[图片]';
+  if (msg.type === 'video') return '[视频]';
+  if (msg.type === 'file') return '[文件]';
+  const text = formatMentionPreview(msg.content);
+  return truncate(text, 30);
 }
