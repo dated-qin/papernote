@@ -13,6 +13,7 @@ type Message struct {
 	FileID         *int64    `gorm:"column:file_id"              json:"file_id"`
 	ReplyTo        *int64    `gorm:"column:reply_to"             json:"reply_to"`
 	ThreadRootID   *int64    `gorm:"column:thread_root_id"       json:"thread_root_id"`
+	ReplyCount     int       `gorm:"column:reply_count"          json:"reply_count"`
 	MsgStatus      int16     `gorm:"column:msg_status"           json:"msg_status"`
 	CreatedAt      time.Time `gorm:"column:created_at"           json:"created_at"`
 }
@@ -56,6 +57,13 @@ type MessageResp struct {
 	FileID         *int64 `json:"file_id"`
 	ReplyTo        *int64 `json:"reply_to"`
 	ThreadRootID   *int64 `json:"thread_root_id"`
+	ReplyCount     int    `json:"reply_count"`
 	Status         int16  `json:"status"`
 	CreatedAt      string `json:"created_at"`
+}
+
+type SearchMessageResp struct {
+	MessageResp
+	ConversationName string `json:"conversation_name"`
+	SenderName       string `json:"sender_name"`
 }

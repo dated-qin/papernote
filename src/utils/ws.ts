@@ -21,8 +21,11 @@ export class WsClient {
   private reconnectDelay = 1000;
   private maxDelay = 16000;
   private heartbeatTimer: number | null = null;
+  private reconnectTimer: number | null = null;
   private seq = 0;
   private token = '';
+  private manualClose = false;
+  private connectionId = 0;
 
   constructor(url: string) {
     this.url = url;
@@ -30,7 +33,27 @@ export class WsClient {
 
   /** 建立 WebSocket 连接 */
   connect(token: string): void {
+    if (!token) return;
+    if (
+      this.token === token &&
+      (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      this.manualClose = true;
+      this.ws.close();
+      this.ws = null;
+    }
+
     this.token = token;
+    this.manualClose = false;
+    const connectionId = ++this.connectionId;
+    this.emit('connecting', { action: 'connecting', data: {} });
     this.ws = new WebSocket(`${this.url}?token=${token}`);
 
     this.ws.onopen = () => {
@@ -46,8 +69,12 @@ export class WsClient {
     };
 
     this.ws.onclose = () => {
+      if (connectionId !== this.connectionId) return;
       this.stopHeartbeat();
-      this.scheduleReconnect(this.token);
+      this.emit('disconnected', { action: 'disconnected', data: {} });
+      if (!this.manualClose && this.token) {
+        this.scheduleReconnect(this.token);
+      }
     };
 
     this.ws.onerror = () => {
@@ -59,6 +86,8 @@ export class WsClient {
   send(action: string, data: Record<string, unknown> = {}): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ action, data }));
+    } else {
+      this.emit('error', { action: 'error', data: { message: 'WebSocket 未连接，消息未发送' } });
     }
   }
 
@@ -76,9 +105,17 @@ export class WsClient {
 
   /** 断开连接 */
   disconnect(): void {
+    this.manualClose = true;
+    this.token = '';
+    this.connectionId += 1;
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.stopHeartbeat();
     this.ws?.close();
     this.ws = null;
+    this.emit('disconnected', { action: 'disconnected', data: {} });
   }
 
   /** 获取服务端最后下发的消息序列号 */
@@ -110,7 +147,8 @@ export class WsClient {
 
   /** 指数退避重连：1s → 2s → 4s → 8s → 16s, max 16s */
   private scheduleReconnect(token: string): void {
-    setTimeout(() => {
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
       this.connect(token);
       this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxDelay);
     }, this.reconnectDelay);
@@ -118,4 +156,6 @@ export class WsClient {
 }
 
 /** 全局单例 WebSocket 客户端 */
-export const wsClient = new WsClient('wss://api.papernote.com/ws');
+export const wsClient = new WsClient(
+  import.meta.env.VITE_WS_URL || 'ws://localhost:8081/ws',
+);

@@ -76,22 +76,28 @@ func (s *Service) SendMessage(senderID int64, req SendMsgReq) (*MessageResp, err
 		}
 
 		// 更新会话 last_msg_id + updated_at
-		tx.Model(& Conversation{}).Where("id = ?", req.ConversationID).
+		if err := tx.Model(&Conversation{}).Where("id = ?", req.ConversationID).
 			Updates(map[string]interface{}{
 				"last_msg_id": msg.ID,
 				"updated_at":  time.Now(),
-			})
+			}).Error; err != nil {
+			return err
+		}
 
 		// 线程回复：更新根消息 reply_count
 		if req.ThreadRootID != nil {
-			tx.Model(&Message{}).Where("id = ?", *req.ThreadRootID).
-				UpdateColumn("reply_count", gorm.Expr("reply_count + 1"))
+			if err := tx.Model(&Message{}).Where("id = ?", *req.ThreadRootID).
+				UpdateColumn("reply_count", gorm.Expr("reply_count + 1")).Error; err != nil {
+				return err
+			}
 		}
 
 		// 非发送者的成员 unread_count +1
-		tx.Model(& ConversationMember{}).
+		if err := tx.Model(&ConversationMember{}).
 			Where("conversation_id = ? AND user_id != ?", req.ConversationID, senderID).
-			UpdateColumn("unread_count", gorm.Expr("unread_count + 1"))
+			UpdateColumn("unread_count", gorm.Expr("unread_count + 1")).Error; err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -124,25 +130,48 @@ func (s *Service) RecallMessage(userID, msgID int64) error {
 
 // ---------- 搜索消息 ----------
 
-func (s *Service) SearchMessages(q SearchQuery) ([]MessageResp, error) {
+func (s *Service) SearchMessages(userID int64, q SearchQuery) ([]SearchMessageResp, error) {
 	limit := 50
-	query := s.db.Model(&Message{}).
-		Where("to_tsvector('simple', content) @@ plainto_tsquery('simple', ?)", q.Q)
+	type row struct {
+		Message
+		ConversationName string `gorm:"column:conversation_name"`
+		SenderName       string `gorm:"column:sender_name"`
+	}
+
+	likeQ := "%" + q.Q + "%"
+	query := s.db.Table("messages m").
+		Select(`m.*,
+			CASE
+				WHEN c.type = 'dm' THEN COALESCE(NULLIF(dm_user.nickname, ''), dm_user.username, '私聊')
+				ELSE COALESCE(NULLIF(c.title, ''), '未命名频道')
+			END AS conversation_name,
+			COALESCE(NULLIF(u.nickname, ''), u.username) AS sender_name`).
+		Joins("JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?", userID).
+		Joins("JOIN conversations c ON c.id = m.conversation_id").
+		Joins("JOIN users u ON u.id = m.sender_id").
+		Joins("LEFT JOIN conversation_members dm_cm ON dm_cm.conversation_id = c.id AND dm_cm.user_id <> ? AND c.type = 'dm'", userID).
+		Joins("LEFT JOIN users dm_user ON dm_user.id = dm_cm.user_id").
+		Where("m.msg_status = 0").
+		Where("(to_tsvector('simple', m.content) @@ plainto_tsquery('simple', ?) OR m.content ILIKE ?)", q.Q, likeQ)
 
 	if q.ConversationID != "" {
 		if convID, err := strconv.ParseInt(q.ConversationID, 10, 64); err == nil {
-			query = query.Where("conversation_id = ?", convID)
+			query = query.Where("m.conversation_id = ?", convID)
 		}
 	}
 
-	var msgs []Message
-	if err := query.Order("created_at DESC").Limit(limit).Find(&msgs).Error; err != nil {
+	var rows []row
+	if err := query.Order("m.created_at DESC").Limit(limit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
-	resp := make([]MessageResp, len(msgs))
-	for i, m := range msgs {
-		resp[i] = toResp(m)
+	resp := make([]SearchMessageResp, len(rows))
+	for i, r := range rows {
+		resp[i] = SearchMessageResp{
+			MessageResp:      toResp(r.Message),
+			ConversationName: r.ConversationName,
+			SenderName:       r.SenderName,
+		}
 	}
 	return resp, nil
 }
@@ -187,6 +216,7 @@ func toResp(m Message) MessageResp {
 		FileID:         m.FileID,
 		ReplyTo:        m.ReplyTo,
 		ThreadRootID:   m.ThreadRootID,
+		ReplyCount:     m.ReplyCount,
 		Status:         m.MsgStatus,
 		CreatedAt:      m.CreatedAt.Format(time.RFC3339),
 	}

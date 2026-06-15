@@ -77,6 +77,8 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 	r.Use(middleware.CORS())
+	r.POST("/api/files/local-upload", fileHandler.LocalUpload)
+	r.GET("/api/files/local/*key", fileHandler.ServeLocal)
 
 	// ===================== 公开路由 =====================
 	authGroup := r.Group("/api/auth")
@@ -90,6 +92,7 @@ func main() {
 	api.Use(middleware.Auth(cfg.JWTSecret))
 	{
 		api.GET("/auth/me", authHandler.Me)
+		api.PUT("/auth/password", authHandler.ChangePassword)
 
 		// 用户 & 好友
 		users := api.Group("/users")
@@ -195,4 +198,3 @@ func (s *wsMsgSender) SendMessage(senderID int64, data ws.SendMsgData) (int64, i
 	}
 	return resp.ID, resp.ConversationID, nil
 }
-

@@ -3,7 +3,7 @@
    支持：文本/引用/回应/线程预览/发送状态
    ============================================ */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { MessageContentRouter } from './MessageFile';
 import type { Message } from '../../types';
@@ -23,8 +23,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
   const addReaction = useChatStore((s) => s.addReaction);
   const removeReaction = useChatStore((s) => s.removeReaction);
   const openThread = useChatStore((s) => s.openThread);
+  const highlightedMessageId = useChatStore((s) => s.highlightedMessageId);
+  const clearHighlightedMessage = useChatStore((s) => s.clearHighlightedMessage);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const isHighlighted = highlightedMessageId === message.id;
 
   const convId = message.conversationId;
+
+  useEffect(() => {
+    if (!isHighlighted) return undefined;
+    bubbleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const timer = window.setTimeout(() => {
+      clearHighlightedMessage();
+    }, 1800);
+    return () => window.clearTimeout(timer);
+  }, [clearHighlightedMessage, isHighlighted]);
 
   const handleReaction = (emoji: string) => {
     const existing = message.reactions?.find((r) => r.emoji === emoji);
@@ -44,9 +57,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
     padding: 'var(--space-sm) var(--space-md)',
     maxWidth: '100%',
     boxShadow: 'var(--shadow-sm)',
+    outline: isHighlighted ? '2px solid var(--accent-primary)' : 'none',
+    outlineOffset: 2,
     position: 'relative',
     wordBreak: 'break-word',
     marginBottom: 'var(--space-xs)',
+    transition: 'outline-color 0.2s, background-color 0.2s',
   };
 
   // 发送状态指示
@@ -73,7 +89,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
       }}
     >
       {/* 消息气泡 */}
-      <div style={bubbleStyle}>
+      <div ref={bubbleRef} data-message-id={message.id} style={bubbleStyle}>
         {/* 引用回复 */}
         {message.quoteId && <QuotePreview quoteId={message.quoteId} />}
 

@@ -4,11 +4,16 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { SearchOutlined } from '@ant-design/icons';
 import { useChatStore } from '../../store/chatStore';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 
-export const ChatArea: React.FC = () => {
+interface ChatAreaProps {
+  onOpenSearch?: (conversationId?: string) => void;
+}
+
+export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
   const activeConversationId = useChatStore((s) => s.activeConversationId);
   const conversation = useChatStore((s) => s.getActiveConversation());
 
@@ -40,7 +45,7 @@ export const ChatArea: React.FC = () => {
         minWidth: 0, // 防止 flex 子元素溢出
       }}
     >
-      <ChatHeader />
+      <ChatHeader onOpenSearch={onOpenSearch} />
       <MessageList />
       <MessageInput />
     </div>
@@ -48,7 +53,7 @@ export const ChatArea: React.FC = () => {
 };
 
 // ============ 聊天头部 ============
-const ChatHeader: React.FC = () => {
+const ChatHeader: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
   const navigate = useNavigate();
   const conversation = useChatStore((s) => s.getActiveConversation());
 
@@ -114,7 +119,22 @@ const ChatHeader: React.FC = () => {
             👥
           </button>
         )}
-        <span title="搜索" style={headerIconStyle}>🔍</span>
+        <button
+          title="搜索"
+          onClick={() => onOpenSearch?.(conversation.id)}
+          style={{
+            ...headerButtonStyle,
+            ...headerIconStyle,
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
+          }}
+        >
+          <SearchOutlined />
+        </button>
         <span title="更多" style={headerIconStyle}>⚙</span>
       </div>
     </div>
@@ -126,4 +146,16 @@ const headerIconStyle: React.CSSProperties = {
   fontSize: 16,
   padding: 'var(--space-xs)',
   borderRadius: 'var(--radius-sm)',
+};
+
+const headerButtonStyle: React.CSSProperties = {
+  width: 28,
+  height: 28,
+  border: 'none',
+  backgroundColor: 'transparent',
+  color: 'var(--text-secondary)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontFamily: 'var(--font-family)',
 };

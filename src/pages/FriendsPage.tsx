@@ -194,6 +194,7 @@ export const FriendsPage: React.FC = () => {
   const friends = useChatStore((s) => s.friends);
   const friendRequests = useChatStore((s) => s.friendRequests);
   const fetchFriends = useChatStore((s) => s.fetchFriends);
+  const fetchFriendRequests = useChatStore((s) => s.fetchFriendRequests);
   const searchUsers = useChatStore((s) => s.searchUsers);
   const sendFriendRequest = useChatStore((s) => s.sendFriendRequest);
   const handleFriendRequest = useChatStore((s) => s.handleFriendRequest);
@@ -211,7 +212,8 @@ export const FriendsPage: React.FC = () => {
   // 初始化加载好友数据
   useEffect(() => {
     fetchFriends();
-  }, [fetchFriends]);
+    fetchFriendRequests();
+  }, [fetchFriends, fetchFriendRequests]);
 
   // 防抖搜索
   useEffect(() => {

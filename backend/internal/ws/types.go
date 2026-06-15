@@ -2,6 +2,10 @@
 package ws
 
 import (
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -50,4 +54,27 @@ type UserNotifier interface {
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+
+		requestHost := r.Host
+		if host, _, err := net.SplitHostPort(r.Host); err == nil {
+			requestHost = host
+		}
+
+		originHost := u.Hostname()
+		if strings.EqualFold(originHost, requestHost) {
+			return true
+		}
+
+		return originHost == "localhost" || originHost == "127.0.0.1" || originHost == "::1"
+	},
 }

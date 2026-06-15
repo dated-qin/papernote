@@ -161,12 +161,36 @@ export const WorkspaceSidebar: React.FC = () => {
 
       {/* 底部用户头像 */}
       {currentUser && (
-        <Avatar
-          src={currentUser.avatarUrl}
-          name={currentUser.nickname || currentUser.username}
-          size={32}
-          style={{ borderRadius: 'var(--radius-md)' }}
-        />
+        <button
+          onClick={() => navigate('/settings')}
+          title="设置"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 'var(--radius-lg)',
+            border: 'none',
+            backgroundColor: location.pathname === '/settings' ? 'var(--bg-active)' : 'transparent',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onMouseEnter={(e) => {
+            if (location.pathname !== '/settings')
+              (e.target as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)';
+          }}
+          onMouseLeave={(e) => {
+            if (location.pathname !== '/settings')
+              (e.target as HTMLButtonElement).style.backgroundColor = 'transparent';
+          }}
+        >
+          <Avatar
+            src={currentUser.avatarUrl}
+            name={currentUser.nickname || currentUser.username}
+            size={32}
+            style={{ borderRadius: 'var(--radius-md)' }}
+          />
+        </button>
       )}
     </nav>
   );

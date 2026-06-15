@@ -3,7 +3,7 @@
    路由保护由 AuthGuard 处理
    ============================================ */
 
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useChatStore } from './store/chatStore';
 import { TitleBar } from './components/TitleBar';
@@ -12,22 +12,50 @@ import { ConversationSidebar } from './components/ConversationSidebar';
 import { ChatArea } from './components/ChatArea';
 import { ThreadPanel } from './components/ThreadPanel';
 import { StatusBar } from './components/StatusBar';
-import { seedDemoData } from './demoData';
+import { SearchDialog } from './components/SearchDialog';
 
 export const App: React.FC = () => {
   const theme = useChatStore((s) => s.theme);
   const setTheme = useChatStore((s) => s.setTheme);
+  const fetchConversations = useChatStore((s) => s.fetchConversations);
+  const wsStatus = useChatStore((s) => s.wsStatus);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchScopeId, setSearchScopeId] = useState<string | null>(null);
 
-  // 初始化主题 + 注入演示数据
+  // 初始化主题 + 加载真实会话
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    seedDemoData();
+    fetchConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleTheme = () => {
     setTheme(theme === 'light' ? 'dark' : 'light');
   };
+
+  const openSearch = useCallback((conversationId?: string) => {
+    setSearchScopeId(conversationId ?? null);
+    setSearchOpen(true);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        openSearch();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [openSearch]);
+
+  useEffect(() => {
+    window.electronAPI?.onFocusSearch(() => openSearch());
+  }, [openSearch]);
 
   return (
     <div
@@ -74,11 +102,17 @@ export const App: React.FC = () => {
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <WorkspaceSidebar />
         <ConversationSidebar />
-        <ChatArea />
+        <ChatArea onOpenSearch={openSearch} />
         <ThreadPanel />
       </div>
 
-      <StatusBar connectionStatus="connected" lastSync="刚刚" />
+      <StatusBar connectionStatus={wsStatus} lastSync="刚刚" />
+
+      <SearchDialog
+        open={searchOpen}
+        scopedConversationId={searchScopeId}
+        onClose={closeSearch}
+      />
 
       {/* Outlet 用于嵌套路由（当前未使用，预留给未来子路由） */}
       <Outlet />

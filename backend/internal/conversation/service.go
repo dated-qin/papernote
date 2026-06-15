@@ -21,17 +21,19 @@ func NewService(db *gorm.DB) *Service {
 func (s *Service) List(userID int64, q ListQuery) ([]ListItem, error) {
 	type row struct {
 		Conversation
-		UnreadCount int    `gorm:"column:unread_count"`
-		Muted       bool   `gorm:"column:muted"`
-		Pinned      bool   `gorm:"column:pinned"`
-		MsgContent  *string `gorm:"column:msg_content"`
-		MsgSenderID *int64  `gorm:"column:msg_sender_id"`
-		MsgType     *int16  `gorm:"column:msg_type"`
+		UnreadCount int        `gorm:"column:unread_count"`
+		Muted       bool       `gorm:"column:muted"`
+		Pinned      bool       `gorm:"column:pinned"`
+		MsgID       *int64     `gorm:"column:msg_id"`
+		MsgContent  *string    `gorm:"column:msg_content"`
+		MsgSenderID *int64     `gorm:"column:msg_sender_id"`
+		MsgType     *int16     `gorm:"column:msg_type"`
 		MsgCreated  *time.Time `gorm:"column:msg_created_at"`
 	}
 
 	query := s.db.Table("conversations c").
 		Select(`c.*, cm.unread_count, cm.muted, cm.pinned,
+			lm.id AS msg_id,
 			lm.content AS msg_content, lm.sender_id AS msg_sender_id,
 			lm.msg_type, lm.created_at AS msg_created_at`).
 		Joins("JOIN conversation_members cm ON cm.conversation_id = c.id AND cm.user_id = ?", userID).
@@ -60,6 +62,7 @@ func (s *Service) List(userID int64, q ListQuery) ([]ListItem, error) {
 		}
 		if r.MsgContent != nil {
 			item.LastMessage = &LastMsg{
+				ID:        *r.MsgID,
 				Content:   *r.MsgContent,
 				SenderID:  *r.MsgSenderID,
 				MsgType:   *r.MsgType,
@@ -110,7 +113,7 @@ func (s *Service) CreateChannel(creatorID int64, req CreateChannelReq) (*ListIte
 		Title:   req.Name,
 		OwnerID: &creatorID,
 	}
-	memberIDs := append([]int64{creatorID}, req.MemberIDs...)
+	memberIDs := uniqueInt64s(append([]int64{creatorID}, req.MemberIDs...))
 	id, err := s.createWithMembers(&conv, memberIDs, creatorID)
 	if err != nil {
 		return nil, err
@@ -161,9 +164,9 @@ func (s *Service) GetDetail(userID, convID int64) (*ListItem, []MemberResp, erro
 	}
 
 	detail := &ListItem{
-		ID:    conv.ID,
-		Type:  conv.Type,
-		Title: conv.Title,
+		ID:     conv.ID,
+		Type:   conv.Type,
+		Title:  conv.Title,
 		Avatar: conv.Avatar,
 	}
 	return detail, members, nil
@@ -376,6 +379,22 @@ func (s *Service) updateRole(convID, userID int64, role string) error {
 	return s.db.Model(&ConversationMember{}).
 		Where("conversation_id = ? AND user_id = ?", convID, userID).
 		Update("role", role).Error
+}
+
+func uniqueInt64s(ids []int64) []int64 {
+	seen := make(map[int64]struct{}, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 // ---------- 声明使用 fmt ----------

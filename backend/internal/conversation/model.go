@@ -39,18 +39,19 @@ type ListQuery struct {
 }
 
 type ListItem struct {
-	ID           int64       `json:"id"`
-	Type         string      `json:"type"`
-	Title        string      `json:"title"`
-	Avatar       string      `json:"avatar"`
-	UnreadCount  int         `json:"unread_count"`
-	Muted        bool        `json:"muted"`
-	Pinned       bool        `json:"pinned"`
-	UpdatedAt    string      `json:"updated_at"`
-	LastMessage  *LastMsg    `json:"last_message,omitempty"`
+	ID          int64    `json:"id"`
+	Type        string   `json:"type"`
+	Title       string   `json:"title"`
+	Avatar      string   `json:"avatar"`
+	UnreadCount int      `json:"unread_count"`
+	Muted       bool     `json:"muted"`
+	Pinned      bool     `json:"pinned"`
+	UpdatedAt   string   `json:"updated_at"`
+	LastMessage *LastMsg `json:"last_message,omitempty"`
 }
 
 type LastMsg struct {
+	ID        int64  `json:"id"`
 	Content   string `json:"content"`
 	SenderID  int64  `json:"sender_id"`
 	MsgType   int16  `json:"msg_type"`
@@ -63,7 +64,7 @@ type CreateDMReq struct {
 
 type CreateChannelReq struct {
 	Name      string  `json:"name" binding:"required,min=1,max=128"`
-	MemberIDs []int64 `json:"member_ids" binding:"required,min=1"`
+	MemberIDs []int64 `json:"member_ids"`
 }
 
 type UpdateGroupReq struct {

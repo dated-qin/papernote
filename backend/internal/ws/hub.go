@@ -7,11 +7,9 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -172,6 +170,7 @@ func (h *Hub) handleSendMsg(c *Client, env Envelope) {
 	convID := getInt64(data, "conversation_id")
 	msgType := int16(getInt64(data, "msg_type"))
 	content := getString(data, "content")
+	clientMsgID := getString(data, "client_msg_id")
 
 	// 校验会话成员
 	if !h.isMember(convID, c.userID) {
@@ -212,17 +211,22 @@ func (h *Hub) handleSendMsg(c *Client, env Envelope) {
 		Action: "new_msg",
 		Seq:    seq,
 		Data: map[string]interface{}{
+			"id":              msgID,
 			"message_id":      msgID,
+			"client_msg_id":   clientMsgID,
 			"conversation_id": convID,
 			"sender_id":       c.userID,
 			"msg_type":        msgType,
 			"content":         content,
+			"reply_to":        int64Ptr(data, "reply_to"),
+			"thread_root_id":  int64Ptr(data, "thread_root_id"),
+			"created_at":      time.Now().Format(time.RFC3339),
 		},
 	})
 
 	// 回复发送者确认
 	c.sendJSON(Envelope{Action: "msg_ack", Data: map[string]interface{}{
-		"message_id": msgID, "seq": seq,
+		"message_id": msgID, "client_msg_id": clientMsgID, "seq": seq,
 	}})
 }
 

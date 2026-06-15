@@ -9,6 +9,9 @@ type User struct {
 	Username  string    `gorm:"column:username"        json:"username"`
 	Nickname  string    `gorm:"column:nickname"        json:"nickname"`
 	Avatar    string    `gorm:"column:avatar"          json:"avatar"`
+	Bio       string    `gorm:"column:bio"             json:"bio"`
+	Phone     string    `gorm:"column:phone"           json:"phone"`
+	Email     string    `gorm:"column:email"           json:"email"`
 	Status    int16     `gorm:"column:status"          json:"status"`
 	CreatedAt time.Time `gorm:"column:created_at"      json:"created_at"`
 }
@@ -49,9 +52,10 @@ type SearchUserResp struct {
 }
 
 type UpdateMeReq struct {
-	Nickname string `json:"nickname"`
-	Avatar   string `json:"avatar"`
-	Email    string `json:"email"`
+	Nickname *string `json:"nickname"`
+	Avatar   *string `json:"avatar"`
+	Bio      *string `json:"bio"`
+	Email    *string `json:"email"`
 }
 
 type FriendResp struct {

@@ -9,9 +9,10 @@ CREATE TABLE messages (
     sender_id       BIGINT  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     msg_type        SMALLINT NOT NULL DEFAULT 0,  -- 0文本 1图片 2视频 3文件 4系统
     content         TEXT    NOT NULL,
-    file_id         BIGINT REFERENCES files(id),
+    file_id         BIGINT,
     reply_to        BIGINT REFERENCES messages(id),
     thread_root_id  BIGINT REFERENCES messages(id),
+    reply_count     INT NOT NULL DEFAULT 0,
     msg_status      SMALLINT NOT NULL DEFAULT 0,  -- 0正常 1撤回
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

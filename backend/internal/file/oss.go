@@ -35,7 +35,7 @@ func (q *QiniuOSS) GenerateUploadToken(key string) (string, string) {
 
 	// 七牛云上传策略
 	putPolicy := map[string]interface{}{
-		"scope":   fmt.Sprintf("%s:%s", q.Bucket, key),
+		"scope":    fmt.Sprintf("%s:%s", q.Bucket, key),
 		"deadline": time.Now().Unix() + 300,
 	}
 	policyJSON, _ := json.Marshal(putPolicy)
@@ -68,7 +68,7 @@ func NewLocalOSS() *LocalOSS { return &LocalOSS{} }
 
 func (l *LocalOSS) GenerateUploadToken(key string) (string, string) {
 	// 返回本地占位凭证
-	return "http://localhost:8080/api/files/upload-callback", "local-dev-token-" + key
+	return "http://localhost:8080/api/files/local-upload", "local-dev-token-" + key
 }
 
 func (l *LocalOSS) GenerateAccessURL(key string, expireSec int64) string {

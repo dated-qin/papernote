@@ -14,6 +14,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { FriendsPage } from './pages/FriendsPage';
 import { GroupSettingsPage } from './pages/GroupSettingsPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { AdminGuard } from './components/AdminGuard';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { DashboardPage } from './pages/admin/DashboardPage';
@@ -46,6 +47,14 @@ const router = createHashRouter([
     element: (
       <AuthGuard>
         <FriendsPage />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: '/settings',
+    element: (
+      <AuthGuard>
+        <SettingsPage />
       </AuthGuard>
     ),
   },

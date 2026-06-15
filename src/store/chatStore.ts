@@ -8,7 +8,16 @@ import { create } from 'zustand';
 import http from '../utils/http';
 import { wsClient } from '../utils/ws';
 import { isElectron } from '../utils/platform';
-import type { ChatStore, Message, User, Conversation, MessageStatus, MessageType } from '../types';
+import type {
+  ChatStore,
+  Message,
+  User,
+  Conversation,
+  MessageStatus,
+  MessageType,
+  SearchMessageResult,
+  UpdateProfileData,
+} from '../types';
 
 // http 将在 auth / conversations / messages action 实现中使用（详见后续上下文）
 void http;
@@ -70,6 +79,15 @@ function apiToMessage(raw: Record<string, unknown>): Message {
     createdAt: new Date(raw.created_at as string).getTime(),
     quoteId: raw.reply_to ? String(raw.reply_to) : undefined,
     threadRootId: raw.thread_root_id ? String(raw.thread_root_id) : undefined,
+    replyCount: (raw.reply_count as number) ?? 0,
+  };
+}
+
+function apiToSearchMessage(raw: Record<string, unknown>): SearchMessageResult {
+  return {
+    ...apiToMessage(raw),
+    conversationName: (raw.conversation_name as string) ?? '',
+    senderName: (raw.sender_name as string) ?? '',
   };
 }
 
@@ -95,6 +113,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   activeConversationId: null,
   messagesByConversation: {},
   lastSeq: 0,
+  highlightedMessageId: null,
   activeThreadRootId: null,
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
   inputDraft: {},
@@ -147,6 +166,32 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       map[u.id] = u;
     }
     set({ users: map });
+  },
+
+  updateProfile: async (data: UpdateProfileData) => {
+    await http.patch('/api/users/me', data);
+    set((state) => {
+      if (!state.currentUser) return state;
+      const updatedUser: User = {
+        ...state.currentUser,
+        nickname: data.nickname ?? state.currentUser.nickname,
+        avatarUrl: data.avatar ?? state.currentUser.avatarUrl,
+        bio: data.bio ?? state.currentUser.bio,
+      };
+      return {
+        currentUser: updatedUser,
+        users: {
+          ...state.users,
+          [updatedUser.id]: updatedUser,
+        },
+      };
+    });
+  },
+
+  setPresenceStatus: (status: User['status']) => {
+    set((state) => ({
+      currentUser: state.currentUser ? { ...state.currentUser, status } : null,
+    }));
   },
 
   // ===================== 工作区 Actions =====================
@@ -243,6 +288,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
     // 通过 WebSocket 发送
     wsClient.send('send_msg', {
+      client_msg_id: pendingMsg.id,
       conversation_id: parseInt(activeConversationId, 10),
       msg_type: numericType,
       content: pendingMsg.content,
@@ -278,10 +324,38 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }
   },
 
+  searchMessages: async (query: string, conversationId?: string): Promise<SearchMessageResult[]> => {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const params = new URLSearchParams({ q: trimmed });
+    if (conversationId) params.set('conversation_id', conversationId);
+    const res = await http.get<{ messages: Record<string, unknown>[] }>(
+      `/api/messages/search?${params.toString()}`,
+    );
+    if (res.code !== 0) return [];
+    return (res.data.messages ?? []).map(apiToSearchMessage);
+  },
+
+  jumpToMessage: async (conversationId: string, messageId: string, message?: Message) => {
+    set({ activeConversationId: conversationId, highlightedMessageId: messageId });
+    if (!get().messagesByConversation[conversationId]?.some((m) => m.id === messageId)) {
+      await get().fetchHistory(conversationId);
+    }
+    if (
+      message &&
+      !get().messagesByConversation[conversationId]?.some((m) => m.id === messageId)
+    ) {
+      get().addMessages([message]);
+    }
+  },
+
+  clearHighlightedMessage: () => set({ highlightedMessageId: null }),
+
   addMessage: (message: Message) => {
     const { messagesByConversation, activeConversationId } = get();
     const convId = message.conversationId;
     const msgs = messagesByConversation[convId] ?? [];
+    if (msgs.some((m) => m.id === message.id)) return;
     set({
       messagesByConversation: {
         ...messagesByConversation,
@@ -402,6 +476,32 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     // 如果接受，刷新好友列表
     if (action === 'accept') {
       await get().fetchFriends();
+    }
+  },
+
+  /** 获取好友请求：GET /api/friends/requests */
+  fetchFriendRequests: async () => {
+    try {
+      const res = await http.get<{ requests: Record<string, unknown>[] }>(
+        '/api/friends/requests',
+      );
+      if (res.code === 0) {
+        const friendRequests = (res.data.requests ?? []).map(
+          (r: Record<string, unknown>) => ({
+            id: String(r.id),
+            fromUserId: String(r.from_user_id),
+            fromUsername: (r.from_username as string) ?? '',
+            fromNickname: (r.from_nickname as string) ?? '',
+            fromAvatarUrl: (r.from_avatar as string) ?? '',
+            message: (r.message as string) || undefined,
+            status: ((r.status as string) ?? 'pending') as 'pending' | 'accepted' | 'rejected',
+            createdAt: r.created_at ? new Date(r.created_at as string).getTime() : Date.now(),
+          }),
+        );
+        set({ friendRequests });
+      }
+    } catch {
+      // 静默处理
     }
   },
 
@@ -635,17 +735,37 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 /** 接收新消息：服务端通过 new_msg 推送 */
 wsClient.on('new_msg', (env) => {
   const apiMsg = env.data as Record<string, unknown>;
+  const clientMsgId = apiMsg.client_msg_id ? String(apiMsg.client_msg_id) : undefined;
   const message: Message = {
-    id: String(apiMsg.id),
+    id: String(apiMsg.id ?? apiMsg.message_id),
     conversationId: String(apiMsg.conversation_id),
     senderId: String(apiMsg.sender_id),
     type: msgTypeMap[apiMsg.msg_type as number] ?? 'text',
     content: apiMsg.content as string,
     status: 'sent',
-    createdAt: new Date(apiMsg.created_at as string).getTime(),
+    createdAt: apiMsg.created_at ? new Date(apiMsg.created_at as string).getTime() : Date.now(),
     quoteId: apiMsg.reply_to ? String(apiMsg.reply_to) : undefined,
     threadRootId: apiMsg.thread_root_id ? String(apiMsg.thread_root_id) : undefined,
   };
+
+  if (clientMsgId) {
+    const store = useChatStore.getState();
+    const msgs = store.messagesByConversation[message.conversationId] ?? [];
+    const pendingIndex = msgs.findIndex((m) => m.id === clientMsgId);
+    if (pendingIndex >= 0) {
+      const nextMsgs = [...msgs];
+      nextMsgs[pendingIndex] = message;
+      useChatStore.setState((s) => ({
+        messagesByConversation: {
+          ...s.messagesByConversation,
+          [message.conversationId]: nextMsgs,
+        },
+        lastSeq: wsClient.getLastSeq(),
+      }));
+      return;
+    }
+  }
+
   useChatStore.getState().addMessage(message);
 
   // 桌面通知（Electron 环境 + 窗口不在前台 + 非活跃会话）
@@ -668,6 +788,23 @@ wsClient.on('new_msg', (env) => {
       window.electronAPI?.showNotification(title, body);
     }
   }
+});
+
+wsClient.on('connected', () => {
+  useChatStore.setState({ wsStatus: 'connected' });
+});
+
+wsClient.on('connecting', () => {
+  useChatStore.setState({ wsStatus: 'connecting' });
+});
+
+wsClient.on('disconnected', () => {
+  useChatStore.setState({ wsStatus: 'disconnected' });
+});
+
+wsClient.on('error', (env) => {
+  const message = (env.data.message as string) || 'WebSocket 错误';
+  alert(message);
 });
 
 /** 消息状态更新（撤回等）：服务端通过 msg_status 推送 */

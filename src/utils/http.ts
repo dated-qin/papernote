@@ -17,7 +17,7 @@ export interface ApiResponse<T = unknown> {
 
 // ---------- 创建 Axios 实例 ----------
 const instance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || 'https://api.papernote.local',
+  baseURL: import.meta.env.VITE_API_BASE || 'http://localhost:8080',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -47,6 +47,12 @@ instance.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       handleApiError(401, '登录已过期');
+    } else if (error.response?.status === 400) {
+      // 参数校验失败 → 提取后端返回的具体原因
+      const msg =
+        (error.response.data as { message?: string })?.message ||
+        '请求参数错误';
+      alert(msg);
     } else if (!error.response) {
       // 网络错误
       alert('网络连接失败，请检查网络');

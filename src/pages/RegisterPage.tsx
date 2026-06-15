@@ -94,18 +94,39 @@ export const RegisterPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [localError, setLocalError] = useState('');
 
   // 已登录直接跳转
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
   }
 
+  const validate = (): string | null => {
+    const u = username.trim();
+    const p = password;
+    const n = nickname.trim();
+    const ph = phone.trim();
+    const em = email.trim();
+
+    if (!u || !n || !p) return '纸条ID、昵称、密码为必填';
+    if (u.length < 3) return '纸条ID至少3个字符';
+    if (u.length > 32) return '纸条ID最多32个字符';
+    if (n.length > 64) return '昵称最多64个字符';
+    if (p.length < 6) return '密码至少6个字符';
+    if (p.length > 64) return '密码最多64个字符';
+    if (!ph && !em) return '手机号或邮箱至少填一项';
+    if (ph && ph.length !== 11) return '手机号格式不正确';
+    if (em && !em.includes('@')) return '邮箱格式不正确';
+    return null;
+  };
+
   const handleRegister = async () => {
-    if (!username.trim() || !nickname.trim() || !password.trim()) return;
-    if (!phone.trim() && !email.trim()) {
-      // 至少填一个联系方式 — 通过 store 的 errorMessage 处理
+    const err = validate();
+    if (err) {
+      setLocalError(err);
       return;
     }
+    setLocalError('');
     try {
       await register({
         username: username.trim(),
@@ -126,11 +147,7 @@ export const RegisterPage: React.FC = () => {
     e.target.style.borderColor = 'var(--border-default)';
   };
 
-  const canSubmit =
-    username.trim() &&
-    nickname.trim() &&
-    password.trim() &&
-    (phone.trim() || email.trim());
+  const canSubmit = validate() === null;
 
   return (
     <div style={styles.container}>
@@ -146,6 +163,7 @@ export const RegisterPage: React.FC = () => {
           onChange={(e) => {
             setUsername(e.target.value);
             if (errorMessage) clearError();
+            if (localError) setLocalError('');
           }}
           onFocus={inputOnFocus}
           onBlur={inputOnBlur}
@@ -163,6 +181,7 @@ export const RegisterPage: React.FC = () => {
           onChange={(e) => {
             setNickname(e.target.value);
             if (errorMessage) clearError();
+            if (localError) setLocalError('');
           }}
           onFocus={inputOnFocus}
           onBlur={inputOnBlur}
@@ -180,6 +199,7 @@ export const RegisterPage: React.FC = () => {
           onChange={(e) => {
             setPassword(e.target.value);
             if (errorMessage) clearError();
+            if (localError) setLocalError('');
           }}
           onFocus={inputOnFocus}
           onBlur={inputOnBlur}
@@ -200,6 +220,7 @@ export const RegisterPage: React.FC = () => {
           onChange={(e) => {
             setPhone(e.target.value);
             if (errorMessage) clearError();
+            if (localError) setLocalError('');
           }}
           onFocus={inputOnFocus}
           onBlur={inputOnBlur}
@@ -217,6 +238,7 @@ export const RegisterPage: React.FC = () => {
           onChange={(e) => {
             setEmail(e.target.value);
             if (errorMessage) clearError();
+            if (localError) setLocalError('');
           }}
           onFocus={inputOnFocus}
           onBlur={inputOnBlur}
@@ -227,8 +249,7 @@ export const RegisterPage: React.FC = () => {
 
         {/* 错误提示 */}
         <div style={styles.errorText}>
-          {errorMessage ||
-            (!canSubmit && username && password ? '手机号或邮箱至少填一项' : '')}
+          {localError || errorMessage || ' '}
         </div>
 
         {/* 注册按钮 */}

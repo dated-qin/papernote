@@ -133,12 +133,38 @@ func (s *Service) GetMe(userID int64) (*MeResp, error) {
 		Username:  user.Username,
 		Nickname:  user.Nickname,
 		Avatar:    user.Avatar,
+		Bio:       user.Bio,
 		Phone:     maskPhone(user.Phone),
 		Email:     maskEmail(user.Email),
 		Status:    user.Status,
 		Role:      user.Role,
 		CreatedAt: user.CreatedAt.Format(time.RFC3339),
 	}, nil
+}
+
+// ---------- 修改密码 ----------
+
+func (s *Service) ChangePassword(userID int64, req ChangePasswordReq) error {
+	var user User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("用户不存在")
+		}
+		return fmt.Errorf("数据库查询失败: %w", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+		return errors.New("旧密码错误")
+	}
+	if req.OldPassword == req.NewPassword {
+		return errors.New("新密码不能与旧密码相同")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 12)
+	if err != nil {
+		return fmt.Errorf("密码加密失败: %w", err)
+	}
+	return s.db.Model(&user).Update("password_hash", string(hash)).Error
 }
 
 // ---------- JWT ----------

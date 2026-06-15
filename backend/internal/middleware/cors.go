@@ -13,6 +13,7 @@ func CORS() gin.HandlerFunc {
 	return cors.New(cors.Config{
 		AllowOrigins: []string{
 			"http://localhost:3000",
+			"http://localhost:3001",
 			"http://localhost:4173",
 			"https://api.papernote.com",
 		},

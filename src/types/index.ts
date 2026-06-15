@@ -12,6 +12,7 @@ export interface User {
   username: string;
   nickname: string;
   avatarUrl: string;
+  bio?: string;
   role?: string; // 'user' | 'admin' — 平台角色
   status: 'online' | 'offline' | 'away';
   lastSeen?: number; // timestamp ms
@@ -77,6 +78,11 @@ export interface Message {
   reactions?: Reaction[];
   /** @提及的用户 ID 列表 */
   mentionIds?: string[];
+}
+
+export interface SearchMessageResult extends Message {
+  conversationName: string;
+  senderName: string;
 }
 
 // ==========================================
@@ -168,6 +174,13 @@ export interface RegisterData {
   email?: string;
 }
 
+export interface UpdateProfileData {
+  nickname?: string;
+  avatar?: string;
+  bio?: string;
+  email?: string;
+}
+
 // ==========================================
 // Zustand Chat Store 接口
 // ==========================================
@@ -191,6 +204,7 @@ export interface ChatStore {
   // ---- 消息 ----
   messagesByConversation: Record<string, Message[]>;
   lastSeq: number;
+  highlightedMessageId: string | null;
 
   // ---- 线程 ----
   activeThreadRootId: string | null;
@@ -216,6 +230,8 @@ export interface ChatStore {
   // ---- 用户缓存 ----
   setCurrentUser: (user: User) => void;
   setUsers: (users: User[]) => void;
+  updateProfile: (data: UpdateProfileData) => Promise<void>;
+  setPresenceStatus: (status: User['status']) => void;
 
   // ---- 工作区 & 会话 ----
   switchWorkspace: (id: string) => void;
@@ -227,6 +243,9 @@ export interface ChatStore {
   // ---- 消息 ----
   sendMessage: (content: string, quoteId?: string, threadRootId?: string, msgType?: MessageType) => void;
   fetchHistory: (conversationId: string, before?: string) => Promise<void>;
+  searchMessages: (query: string, conversationId?: string) => Promise<SearchMessageResult[]>;
+  jumpToMessage: (conversationId: string, messageId: string, message?: Message) => Promise<void>;
+  clearHighlightedMessage: () => void;
   addMessage: (message: Message) => void;
   addMessages: (messages: Message[]) => void;
   updateMessageStatus: (convId: string, msgId: string, status: MessageStatus) => void;
@@ -245,6 +264,7 @@ export interface ChatStore {
   searchUsers: (query: string) => Promise<User[]>;
   sendFriendRequest: (toUserId: string, message?: string) => Promise<void>;
   handleFriendRequest: (requestId: string, action: 'accept' | 'reject') => Promise<void>;
+  fetchFriendRequests: () => Promise<void>;
   fetchFriends: () => Promise<void>;
   deleteFriend: (userId: string) => Promise<void>;
   blockUser: (userId: string, blocked: boolean) => Promise<void>;

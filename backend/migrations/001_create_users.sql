@@ -9,6 +9,7 @@ CREATE TABLE users (
     password_hash   VARCHAR(255) NOT NULL,
     nickname        VARCHAR(64)  NOT NULL,
     avatar          VARCHAR(512),
+    bio             VARCHAR(256),
     phone           VARCHAR(20),
     email           VARCHAR(128),
     status          SMALLINT     NOT NULL DEFAULT 0,  -- 0正常 1封禁

@@ -123,6 +123,39 @@ func (h *Handler) Me(c *gin.Context) {
 	})
 }
 
+// ---------- PUT /api/auth/password ----------
+
+func (h *Handler) ChangePassword(c *gin.Context) {
+	userIDStr, _ := c.Get("user_id")
+	userID, err := strconv.ParseInt(userIDStr.(string), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code":    401,
+			"message": "无法解析用户身份",
+		})
+		return
+	}
+
+	var req ChangePasswordReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "请求参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	if err := h.svc.ChangePassword(userID, req); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code":    400,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
+}
+
 // ---------- helper ----------
 
 func isConflict(err error) bool {

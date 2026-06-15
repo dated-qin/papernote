@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -23,8 +24,9 @@ func NewService(db *gorm.DB, rdb *redis.Client) *Service {
 
 func (s *Service) SearchUsers(query string) ([]SearchUserResp, error) {
 	var users []User
-	if err := s.db.Where("username LIKE ? OR nickname LIKE ?",
-		"%"+query+"%", "%"+query+"%").
+	kw := "%" + query + "%"
+	if err := s.db.Where("username LIKE ? OR nickname LIKE ? OR phone LIKE ?",
+		kw, kw, kw).
 		Limit(20).Find(&users).Error; err != nil {
 		return nil, err
 	}
@@ -46,14 +48,29 @@ func (s *Service) SearchUsers(query string) ([]SearchUserResp, error) {
 
 func (s *Service) UpdateMe(userID int64, req UpdateMeReq) error {
 	updates := map[string]interface{}{}
-	if req.Nickname != "" {
-		updates["nickname"] = req.Nickname
+	if req.Nickname != nil {
+		nickname := strings.TrimSpace(*req.Nickname)
+		if nickname == "" {
+			return errors.New("昵称不能为空")
+		}
+		updates["nickname"] = nickname
 	}
-	if req.Avatar != "" {
-		updates["avatar"] = req.Avatar
+	if req.Avatar != nil {
+		updates["avatar"] = strings.TrimSpace(*req.Avatar)
 	}
-	if req.Email != "" {
-		updates["email"] = req.Email
+	if req.Bio != nil {
+		bio := strings.TrimSpace(*req.Bio)
+		if len([]rune(bio)) > 256 {
+			return errors.New("简介不能超过 256 个字符")
+		}
+		updates["bio"] = bio
+	}
+	if req.Email != nil {
+		email := strings.TrimSpace(*req.Email)
+		if email != "" && !strings.Contains(email, "@") {
+			return errors.New("邮箱格式不正确")
+		}
+		updates["email"] = email
 	}
 	if len(updates) == 0 {
 		return errors.New("无更新字段")

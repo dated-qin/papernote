@@ -3,8 +3,10 @@
 package config
 
 import (
+	"bufio"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -35,7 +37,35 @@ type Config struct {
 	WSPort int
 }
 
+// loadEnvFile 从 .env 文件加载环境变量（只设置尚未设置的变量）
+func loadEnvFile(path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		idx := strings.Index(line, "=")
+		if idx < 0 {
+			continue
+		}
+		key := strings.TrimSpace(line[:idx])
+		val := strings.TrimSpace(line[idx+1:])
+		if key == "" || val == "" {
+			continue
+		}
+		os.Setenv(key, val)
+	}
+}
+
 func Load() *Config {
+	loadEnvFile(".env")
 	cfg := &Config{
 		DBHost:         requireEnv("DB_HOST"),
 		DBPort:         requireIntEnv("DB_PORT"),
@@ -44,7 +74,7 @@ func Load() *Config {
 		DBName:         requireEnv("DB_NAME"),
 		RedisHost:      requireEnv("REDIS_HOST"),
 		RedisPort:      requireIntEnv("REDIS_PORT"),
-		RedisPassword:  requireEnv("REDIS_PASSWORD"),
+		RedisPassword:  getEnv("REDIS_PASSWORD", ""),
 		JWTSecret:      requireEnv("JWT_SECRET"),
 		JWTExpireHours: getIntEnv("JWT_EXPIRE_HOURS", 24),
 		OSSAccessKey:   getEnv("OSS_ACCESS_KEY", ""),

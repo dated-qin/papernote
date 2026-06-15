@@ -67,7 +67,7 @@ func (h *Handler) Search(c *gin.Context) {
 		return
 	}
 
-	msgs, err := h.svc.SearchMessages(q)
+	msgs, err := h.svc.SearchMessages(userID(c), q)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "搜索失败"})
 		return

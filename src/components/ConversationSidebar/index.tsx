@@ -26,12 +26,44 @@ export const ConversationSidebar: React.FC = () => {
   const conversations = useChatStore((s) => s.conversations);
   const activeId = useChatStore((s) => s.activeConversationId);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+  const createChannel = useChatStore((s) => s.createChannel);
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showChannelDialog, setShowChannelDialog] = useState(false);
+  const [channelName, setChannelName] = useState('');
+  const [channelError, setChannelError] = useState('');
+  const [creatingChannel, setCreatingChannel] = useState(false);
 
   const toggleSection = (key: string) => {
     setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const openChannelDialog = () => {
+    setShowCreateMenu(false);
+    setChannelName('');
+    setChannelError('');
+    setShowChannelDialog(true);
+  };
+
+  const submitChannel = async () => {
+    const name = channelName.trim();
+    if (!name) {
+      setChannelError('请输入频道名称');
+      return;
+    }
+
+    setCreatingChannel(true);
+    setChannelError('');
+    try {
+      const convId = await createChannel(name, []);
+      setActiveConversation(convId);
+      setShowChannelDialog(false);
+    } catch {
+      setChannelError('创建频道失败，请稍后再试');
+    } finally {
+      setCreatingChannel(false);
+    }
   };
 
   return (
@@ -159,12 +191,7 @@ export const ConversationSidebar: React.FC = () => {
                     whiteSpace: 'nowrap',
                   }}
                   onClick={() => {
-                    setShowCreateMenu(false);
-                    // 创建频道：弹窗输入（简化：直接提示）
-                    const name = prompt('请输入频道名称：');
-                    if (name?.trim()) {
-                      useChatStore.getState().createChannel(name.trim(), []);
-                    }
+                    openChannelDialog();
                   }}
                   onMouseEnter={(e) => {
                     (e.target as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)';
@@ -180,6 +207,131 @@ export const ConversationSidebar: React.FC = () => {
           )}
         </div>
       </div>
+
+      {showChannelDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 50,
+            backgroundColor: 'rgba(0, 0, 0, 0.28)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'var(--space-lg)',
+          }}
+          onClick={() => {
+            if (!creatingChannel) setShowChannelDialog(false);
+          }}
+        >
+          <div
+            style={{
+              width: 'min(360px, 100%)',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-lg)',
+              padding: 'var(--space-lg)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              style={{
+                margin: 0,
+                color: 'var(--text-primary)',
+                fontSize: 'var(--font-size-lg)',
+                fontWeight: 'var(--font-weight-bold)' as any,
+              }}
+            >
+              创建频道
+            </h2>
+            <input
+              value={channelName}
+              onChange={(e) => {
+                setChannelName(e.target.value);
+                if (channelError) setChannelError('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitChannel();
+                if (e.key === 'Escape' && !creatingChannel) setShowChannelDialog(false);
+              }}
+              placeholder="频道名称"
+              autoFocus
+              maxLength={128}
+              style={{
+                width: '100%',
+                height: 36,
+                marginTop: 'var(--space-md)',
+                padding: '0 var(--space-md)',
+                borderRadius: 'var(--radius-sm)',
+                border: `1px solid ${channelError ? 'var(--accent-red)' : 'var(--border-default)'}`,
+                backgroundColor: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                fontSize: 'var(--font-size-md)',
+                outline: 'none',
+                fontFamily: 'var(--font-family)',
+                boxSizing: 'border-box',
+              }}
+            />
+            {channelError && (
+              <p
+                style={{
+                  margin: 'var(--space-xs) 0 0',
+                  color: 'var(--accent-red)',
+                  fontSize: 'var(--font-size-sm)',
+                }}
+              >
+                {channelError}
+              </p>
+            )}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 'var(--space-sm)',
+                marginTop: 'var(--space-lg)',
+              }}
+            >
+              <button
+                type="button"
+                disabled={creatingChannel}
+                onClick={() => setShowChannelDialog(false)}
+                style={{
+                  height: 32,
+                  padding: '0 var(--space-md)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-default)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary)',
+                  fontSize: 'var(--font-size-sm)',
+                  cursor: creatingChannel ? 'default' : 'pointer',
+                  fontFamily: 'var(--font-family)',
+                }}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={creatingChannel}
+                onClick={submitChannel}
+                style={{
+                  height: 32,
+                  padding: '0 var(--space-md)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: 'none',
+                  backgroundColor: 'var(--accent-primary)',
+                  color: 'var(--white)',
+                  fontSize: 'var(--font-size-sm)',
+                  cursor: creatingChannel ? 'default' : 'pointer',
+                  fontFamily: 'var(--font-family)',
+                }}
+              >
+                {creatingChannel ? '创建中' : '创建'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 会话列表 */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-sm) 0' }}>

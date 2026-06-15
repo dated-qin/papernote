@@ -2,7 +2,10 @@ package file
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -61,6 +64,53 @@ func (h *Handler) UploadCallback(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "data": resp})
 }
 
+// ---------- POST /api/files/local-upload ----------
+
+func (h *Handler) LocalUpload(c *gin.Context) {
+	key := c.PostForm("key")
+	token := c.PostForm("token")
+	if key == "" || token != "local-dev-token-"+key {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的本地上传凭证"})
+		return
+	}
+
+	safeKey, ok := safeLocalKey(key)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的文件路径"})
+		return
+	}
+
+	src, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少上传文件"})
+		return
+	}
+
+	dst := filepath.Join("uploads", safeKey)
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建目录失败"})
+		return
+	}
+	if err := c.SaveUploadedFile(src, dst); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存文件失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
+}
+
+// ---------- GET /api/files/local/*key ----------
+
+func (h *Handler) ServeLocal(c *gin.Context) {
+	key := strings.TrimPrefix(c.Param("key"), "/")
+	safeKey, ok := safeLocalKey(key)
+	if !ok {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	c.File(filepath.Join("uploads", safeKey))
+}
+
 // ---------- GET /api/files/:id/url ----------
 
 func (h *Handler) GetFileURL(c *gin.Context) {
@@ -77,4 +127,12 @@ func (h *Handler) GetFileURL(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "data": resp})
+}
+
+func safeLocalKey(key string) (string, bool) {
+	clean := filepath.Clean(filepath.FromSlash(key))
+	if clean == "." || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == ".." {
+		return "", false
+	}
+	return clean, true
 }

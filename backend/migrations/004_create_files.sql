@@ -18,6 +18,6 @@ CREATE TABLE files (
 
 CREATE INDEX idx_files_user ON files(user_id, created_at DESC);
 
--- 补充 messages.file_id 外键（迁移 003 已引用 files 表，此处确保顺序执行时 files 已存在）
--- ALTER TABLE messages ADD CONSTRAINT fk_messages_file
---   FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE SET NULL;
+-- 补充 messages.file_id 外键
+ALTER TABLE messages ADD CONSTRAINT fk_messages_file
+  FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE SET NULL;

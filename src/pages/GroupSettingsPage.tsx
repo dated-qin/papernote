@@ -260,6 +260,8 @@ export const GroupSettingsPage: React.FC = () => {
   // 弹窗状态
   const [muteTarget, setMuteTarget] = useState<GroupMember | null>(null);
   const [confirmDissolve, setConfirmDissolve] = useState(false);
+  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [confirmAction, setConfirmAction] = useState<{
     member: GroupMember;
     action: string;
@@ -393,10 +395,8 @@ export const GroupSettingsPage: React.FC = () => {
                 border: '1px solid var(--border-default)',
               }}
               onClick={() => {
-                const url = prompt('请输入新的头像 URL：');
-                if (url?.trim() && convId) {
-                  updateGroupInfo(convId, { avatar: url.trim() });
-                }
+                setAvatarUrl(conversation.avatarUrl ?? '');
+                setAvatarDialogOpen(true);
               }}
             >
               更换头像
@@ -696,12 +696,8 @@ export const GroupSettingsPage: React.FC = () => {
         <MuteDurationPicker
           memberName={muteTarget.nickname}
           onSelect={async (seconds) => {
-            const duration = seconds > 0 ? seconds : (() => {
-              const custom = prompt('请输入禁言时长（秒）：');
-              return custom ? parseInt(custom, 10) : 0;
-            })();
-            if (duration > 0) {
-              await manageMember(convId, muteTarget.userId, 'mute', duration);
+            if (seconds > 0) {
+              await manageMember(convId, muteTarget.userId, 'mute', seconds);
               getMembers(convId).then(setMembers);
             }
             setMuteTarget(null);
@@ -734,6 +730,22 @@ export const GroupSettingsPage: React.FC = () => {
           onCancel={() => setConfirmAction(null)}
         />
       )}
+
+      {avatarDialogOpen && convId && (
+        <InputDialog
+          title="更换头像"
+          placeholder="输入新的头像 URL"
+          value={avatarUrl}
+          onChange={setAvatarUrl}
+          onConfirm={async () => {
+            const url = avatarUrl.trim();
+            if (!url) return;
+            await updateGroupInfo(convId, { avatar: url });
+            setAvatarDialogOpen(false);
+          }}
+          onCancel={() => setAvatarDialogOpen(false)}
+        />
+      )}
     </div>
   );
 };
@@ -744,52 +756,155 @@ const MuteDurationPicker: React.FC<{
   memberName: string;
   onSelect: (seconds: number) => void;
   onCancel: () => void;
-}> = ({ memberName, onSelect, onCancel }) => (
-  <div style={S.modal} onClick={onCancel}>
-    <div style={S.modalCard} onClick={(e) => e.stopPropagation()}>
-      <p style={S.modalTitle}>禁言 {memberName}</p>
-      <p
-        style={{
-          fontSize: 'var(--font-size-sm)',
-          color: 'var(--text-muted)',
-          marginBottom: 'var(--space-lg)',
-        }}
-      >
-        选择禁言时长：
-      </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-        {MUTE_OPTIONS.map((opt) => (
+}> = ({ memberName, onSelect, onCancel }) => {
+  const [showCustom, setShowCustom] = useState(false);
+  const [customSeconds, setCustomSeconds] = useState('');
+
+  const submitCustom = () => {
+    const seconds = Number.parseInt(customSeconds, 10);
+    if (Number.isFinite(seconds) && seconds > 0) {
+      onSelect(seconds);
+    }
+  };
+
+  return (
+    <div style={S.modal} onClick={onCancel}>
+      <div style={S.modalCard} onClick={(e) => e.stopPropagation()}>
+        <p style={S.modalTitle}>禁言 {memberName}</p>
+        <p
+          style={{
+            fontSize: 'var(--font-size-sm)',
+            color: 'var(--text-muted)',
+            marginBottom: 'var(--space-lg)',
+          }}
+        >
+          选择禁言时长：
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          {MUTE_OPTIONS.map((opt) => (
+            opt.seconds === -1 ? (
+              <div key={opt.label} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                <button
+                  style={{
+                    height: 40,
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-default)',
+                    backgroundColor: showCustom ? 'var(--bg-hover)' : 'transparent',
+                    color: 'var(--text-primary)',
+                    fontSize: 'var(--font-size-md)',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-family)',
+                  }}
+                  onClick={() => setShowCustom((v) => !v)}
+                >
+                  {opt.label}
+                </button>
+                {showCustom && (
+                  <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                    <input
+                      value={customSeconds}
+                      onChange={(e) => setCustomSeconds(e.target.value.replace(/\D/g, ''))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitCustom();
+                      }}
+                      placeholder="秒"
+                      autoFocus
+                      style={{
+                        ...S.input,
+                        maxWidth: 'none',
+                        width: 0,
+                        flex: 1,
+                      }}
+                    />
+                    <button
+                      style={S.saveBtn}
+                      onClick={submitCustom}
+                    >
+                      确定
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                key={opt.label}
+                style={{
+                  height: 40,
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-primary)',
+                  fontSize: 'var(--font-size-md)',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-family)',
+                  transition: 'background-color 0.1s',
+                }}
+                onClick={() => onSelect(opt.seconds)}
+                onMouseEnter={(e) => {
+                  (e.target as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.target as HTMLButtonElement).style.backgroundColor = 'transparent';
+                }}
+              >
+                {opt.label}
+              </button>
+            )
+          ))}
           <button
-            key={opt.label}
             style={{
               height: 40,
               borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-default)',
+              border: 'none',
               backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
+              color: 'var(--text-muted)',
               fontSize: 'var(--font-size-md)',
               cursor: 'pointer',
               fontFamily: 'var(--font-family)',
-              transition: 'background-color 0.1s',
             }}
-            onClick={() => onSelect(opt.seconds)}
-            onMouseEnter={(e) => {
-              (e.target as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)';
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLButtonElement).style.backgroundColor = 'transparent';
-            }}
+            onClick={onCancel}
           >
-            {opt.label}
+            取消
           </button>
-        ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ===================== 输入弹窗 =====================
+
+const InputDialog: React.FC<{
+  title: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}> = ({ title, placeholder, value, onChange, onConfirm, onCancel }) => (
+  <div style={S.modal} onClick={onCancel}>
+    <div style={S.modalCard} onClick={(e) => e.stopPropagation()}>
+      <p style={S.modalTitle}>{title}</p>
+      <input
+        style={{ ...S.input, width: '100%', maxWidth: 'none' }}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onConfirm();
+          if (e.key === 'Escape') onCancel();
+        }}
+        placeholder={placeholder}
+        autoFocus
+      />
+      <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'flex-end', marginTop: 'var(--space-lg)' }}>
         <button
           style={{
-            height: 40,
+            height: 36,
+            padding: '0 var(--space-lg)',
             borderRadius: 'var(--radius-md)',
-            border: 'none',
+            border: '1px solid var(--border-default)',
             backgroundColor: 'transparent',
-            color: 'var(--text-muted)',
+            color: 'var(--text-secondary)',
             fontSize: 'var(--font-size-md)',
             cursor: 'pointer',
             fontFamily: 'var(--font-family)',
@@ -797,6 +912,23 @@ const MuteDurationPicker: React.FC<{
           onClick={onCancel}
         >
           取消
+        </button>
+        <button
+          style={{
+            height: 36,
+            padding: '0 var(--space-lg)',
+            borderRadius: 'var(--radius-md)',
+            border: 'none',
+            backgroundColor: 'var(--accent-primary)',
+            color: 'var(--white)',
+            fontSize: 'var(--font-size-md)',
+            fontWeight: 'var(--font-weight-semibold)' as any,
+            cursor: 'pointer',
+            fontFamily: 'var(--font-family)',
+          }}
+          onClick={onConfirm}
+        >
+          确定
         </button>
       </div>
     </div>

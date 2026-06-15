@@ -5,6 +5,7 @@
    ============================================ */
 
 import { create } from 'zustand';
+import { AxiosError } from 'axios';
 import http from '../utils/http';
 import { wsClient } from '../utils/ws';
 import { tokenStorage } from '../utils/token';
@@ -38,10 +39,22 @@ interface MeResponse {
   username: string;
   nickname: string;
   avatar: string;
+  bio?: string;
   phone: string;
   email: string;
   status: number;
+  role?: string;
   created_at: string;
+}
+
+// ---------- 辅助函数：提取 Axios 错误消息 ----------
+
+function getErrorMessage(e: unknown): string {
+  if (e instanceof AxiosError) {
+    const data = e.response?.data as { message?: string } | undefined;
+    if (data?.message) return data.message;
+  }
+  return '网络错误，请稍后重试';
 }
 
 // ---------- Store 创建 ----------
@@ -71,7 +84,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: false, errorMessage: res.message || '登录失败' });
       }
     } catch (e) {
-      set({ isLoading: false, errorMessage: '网络错误，请稍后重试' });
+      set({ isLoading: false, errorMessage: getErrorMessage(e) });
       throw e;
     }
   },
@@ -90,7 +103,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: false, errorMessage: res.message || '注册失败' });
       }
     } catch (e) {
-      set({ isLoading: false, errorMessage: '网络错误，请稍后重试' });
+      set({ isLoading: false, errorMessage: getErrorMessage(e) });
       throw e;
     }
   },
@@ -99,6 +112,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     tokenStorage.remove();
     wsClient.disconnect();
+    useChatStore.getState().logout();
     set({ isAuthenticated: false, currentUser: null, errorMessage: null });
   },
 
@@ -112,6 +126,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           username: res.data.username,
           nickname: res.data.nickname,
           avatarUrl: res.data.avatar || '',
+          bio: res.data.bio || '',
+          role: res.data.role || 'user',
           status: 'online',
         };
         set({ currentUser: user });

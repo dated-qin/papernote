@@ -198,12 +198,15 @@ func (s *Service) ListGroups(q GroupListQuery) ([]AdminGroupResp, int64, error) 
 		Select("c.id, c.title, u.nickname AS owner_name, c.created_at").
 		Joins("LEFT JOIN users u ON u.id = c.owner_id").
 		Where("c.type = 'channel'")
+	countQuery := s.db.Table("conversations c").Where("c.type = 'channel'")
 	if q.Keyword != "" {
-		query = query.Where("c.title ILIKE ?", "%"+q.Keyword+"%")
+		kw := "%" + q.Keyword + "%"
+		query = query.Where("c.title ILIKE ?", kw)
+		countQuery = countQuery.Where("c.title ILIKE ?", kw)
 	}
 
 	var total int64
-	s.db.Table("conversations").Where("type = 'channel'").Count(&total)
+	countQuery.Count(&total)
 
 	type row struct {
 		ID        int64     `gorm:"column:id"`
@@ -231,9 +234,8 @@ func (s *Service) DeleteGroup(adminID, groupID int64) error {
 	var title string
 	s.db.Table("conversations").Select("title").Where("id = ?", groupID).Scan(&title)
 
-	if err := s.db.Delete(& struct{ ID int64 }{ID: groupID}, groupID).Error; err != nil {
-		// 尝试按 conversations 表删除
-		s.db.Exec("DELETE FROM conversations WHERE id = ?", groupID)
+	if err := s.db.Table("conversations").Where("id = ? AND type = 'channel'", groupID).Delete(nil).Error; err != nil {
+		return err
 	}
 
 	LogAction(s.db, adminID, "delete_group", "group", groupID, fmt.Sprintf("解散群「%s」", title))
@@ -256,15 +258,18 @@ func (s *Service) ListLogs(q LogQuery) ([]AdminLogResp, int64, error) {
 	query := s.db.Table("admin_logs al").
 		Select("al.*, u.nickname AS admin_name").
 		Joins("LEFT JOIN users u ON u.id = al.admin_id")
+	countQuery := s.db.Table("admin_logs al")
 	if q.Action != "" {
 		query = query.Where("al.action = ?", q.Action)
+		countQuery = countQuery.Where("al.action = ?", q.Action)
 	}
 	if q.AdminID != "" {
 		query = query.Where("al.admin_id = ?", q.AdminID)
+		countQuery = countQuery.Where("al.admin_id = ?", q.AdminID)
 	}
 
 	var total int64
-	s.db.Table("admin_logs").Count(&total)
+	countQuery.Count(&total)
 
 	type row struct {
 		ID         int64     `gorm:"column:id"`
@@ -299,19 +304,28 @@ func LogAction(db *gorm.DB, adminID int64, action, targetType string, targetID i
 }
 
 func normalizePage(page, pageSize int) (int, int) {
-	if page < 1 { page = 1 }
-	if pageSize < 1 || pageSize > 100 { pageSize = 20 }
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
 	return page, pageSize
 }
 
 func maskPhone(phone string) string {
-	if len(phone) < 7 { return phone }
+	if len(phone) < 7 {
+		return phone
+	}
 	return phone[:3] + "****" + phone[len(phone)-4:]
 }
 
 func maskEmail(email string) string {
-	if email == "" || len(email) < 3 { return email }
-	return email[:1] + "***" + email[strings.LastIndexByte(email, '@'):]
+	at := strings.LastIndexByte(email, '@')
+	if email == "" || len(email) < 3 || at <= 0 {
+		return email
+	}
+	return email[:1] + "***" + email[at:]
 }
 
 func formatSize(bytes int64) string {
