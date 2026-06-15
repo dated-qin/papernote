@@ -75,9 +75,13 @@ function groupMessages(messages: Message[]): GroupedBlock[] {
 export const MessageList: React.FC = () => {
   const messages = useChatStore((s) => s.getActiveMessages());
   const currentUserId = useChatStore((s) => s.currentUser?.id ?? '');
+  const activeConversationId = useChatStore((s) => s.activeConversationId);
+  const fetchHistory = useChatStore((s) => s.fetchHistory);
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(messages.length);
+  const isLoadingMore = useRef(false);
+  const firstLoad = useRef(true);
 
   const blocks = groupMessages(messages);
 
@@ -97,12 +101,39 @@ export const MessageList: React.FC = () => {
 
   // 初始加载滚到底部
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, []);
+    if (firstLoad.current && messages.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+      firstLoad.current = false;
+    }
+  }, [messages.length]);
+
+  // 向上滚动加载更早消息
+  const handleScroll = useCallback(() => {
+    const el = listRef.current;
+    if (!el || isLoadingMore.current) return;
+    // 滚动到顶部附近时加载更多
+    if (el.scrollTop < 100) {
+      const oldest = messages[0];
+      if (oldest && activeConversationId) {
+        isLoadingMore.current = true;
+        const prevHeight = el.scrollHeight;
+        void fetchHistory(activeConversationId, oldest.id).finally(() => {
+          // 加载完成后保持滚动位置
+          requestAnimationFrame(() => {
+            if (el) {
+              el.scrollTop = el.scrollHeight - prevHeight;
+            }
+            isLoadingMore.current = false;
+          });
+        });
+      }
+    }
+  }, [messages, activeConversationId, fetchHistory]);
 
   return (
     <div
       ref={listRef}
+      onScroll={handleScroll}
       style={{
         flex: 1,
         overflowY: 'auto',
