@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -36,6 +37,10 @@ func (h *Handler) List(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "获取会话列表失败"})
 		return
+	}
+	// DEBUG: 打印会话列表的 title/avatar
+	for _, it := range items {
+		log.Printf("[DEBUG] conv id=%d type=%s title=%q avatar=%q", it.ID, it.Type, it.Title, it.Avatar)
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"conversations": items}})
 }
