@@ -1096,6 +1096,26 @@ wsClient.on('new_msg', (env) => {
     }
   }
 
+  // 缓存发送者信息
+  const senderNickname = (apiMsg.sender_nickname as string) || (apiMsg.sender_username as string) || '';
+  const senderAvatar = (apiMsg.sender_avatar as string) || '';
+  const senderUsername = (apiMsg.sender_username as string) || '';
+  if (senderNickname || senderAvatar) {
+    useChatStore.setState((s) => ({
+      users: {
+        ...s.users,
+        [message.senderId]: {
+          ...s.users[message.senderId],
+          id: message.senderId,
+          nickname: senderNickname,
+          username: senderUsername,
+          avatarUrl: senderAvatar,
+          status: 'online' as const,
+        },
+      },
+    }));
+  }
+
   // 如果该会话被隐藏，自动恢复
   const currentStore = useChatStore.getState();
   if (currentStore.hiddenConversationIds.includes(message.conversationId)) {

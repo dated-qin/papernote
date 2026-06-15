@@ -217,6 +217,15 @@ func (h *Hub) handleSendMsg(c *Client, env Envelope) {
 		return
 	}
 
+
+		// 查询发送者昵称/头像
+		var senderInfo struct {
+			Nickname string
+			Avatar   string
+			Username string
+		}
+		h.db.Table("users").Select("nickname, avatar, username").Where("id = ?", c.userID).First(&senderInfo)
+
 	// 分配 seq + 入队
 	seq := h.rdb.Incr(context.Background(), fmt.Sprintf("user:%d:msg_seq", c.userID)).Val()
 
@@ -230,6 +239,9 @@ func (h *Hub) handleSendMsg(c *Client, env Envelope) {
 			"client_msg_id":   clientMsgID,
 			"conversation_id": convID,
 			"sender_id":       c.userID,
+				"sender_nickname": senderInfo.Nickname,
+				"sender_avatar":   senderInfo.Avatar,
+				"sender_username": senderInfo.Username,
 			"msg_type":        msgType,
 			"content":         content,
 			"reply_to":        int64Ptr(data, "reply_to"),
