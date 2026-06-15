@@ -263,6 +263,62 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     throw new Error('创建群聊失败');
   },
 
+  togglePin: async (convId: string): Promise<void> => {
+    const current = get().conversations.find((c) => c.id === convId);
+    if (!current) return;
+
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === convId ? { ...c, isPinned: !c.isPinned } : c,
+      ),
+    }));
+
+    try {
+      const res = await http.put<{ pinned: boolean }>(`/api/conversations/${convId}/pin`);
+      if (res.code === 0 && typeof res.data.pinned === 'boolean') {
+        set((state) => ({
+          conversations: state.conversations.map((c) =>
+            c.id === convId ? { ...c, isPinned: res.data.pinned } : c,
+          ),
+        }));
+      }
+    } catch {
+      set((state) => ({
+        conversations: state.conversations.map((c) =>
+          c.id === convId ? { ...c, isPinned: current.isPinned } : c,
+        ),
+      }));
+    }
+  },
+
+  toggleMute: async (convId: string): Promise<void> => {
+    const current = get().conversations.find((c) => c.id === convId);
+    if (!current) return;
+
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === convId ? { ...c, isMuted: !c.isMuted } : c,
+      ),
+    }));
+
+    try {
+      const res = await http.put<{ muted: boolean }>(`/api/conversations/${convId}/mute`);
+      if (res.code === 0 && typeof res.data.muted === 'boolean') {
+        set((state) => ({
+          conversations: state.conversations.map((c) =>
+            c.id === convId ? { ...c, isMuted: res.data.muted } : c,
+          ),
+        }));
+      }
+    } catch {
+      set((state) => ({
+        conversations: state.conversations.map((c) =>
+          c.id === convId ? { ...c, isMuted: current.isMuted } : c,
+        ),
+      }));
+    }
+  },
+
   // ===================== 消息 Actions =====================
 
   /**
@@ -787,7 +843,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   getUnreadTotal: (): number => {
-    return get().conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+    return get().conversations.reduce(
+      (sum, c) => (c.isMuted ? sum : sum + c.unreadCount),
+      0,
+    );
   },
 }));
 

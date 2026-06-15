@@ -245,6 +245,8 @@ export interface ChatStore {
   fetchConversations: () => Promise<void>;
   createDM: (userId: string) => Promise<string>;
   createChannel: (name: string, memberIds: string[]) => Promise<string>;
+  togglePin: (convId: string) => Promise<void>;
+  toggleMute: (convId: string) => Promise<void>;
 
   // ---- 消息 ----
   sendMessage: (

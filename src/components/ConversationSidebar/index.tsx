@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChatStore } from '../../store/chatStore';
 import { Avatar, UnreadBadge } from '../common';
+import { ConversationContextMenu } from './ConversationContextMenu';
 import type { Conversation } from '../../types';
 
 /** 分区定义 */
@@ -27,6 +28,8 @@ export const ConversationSidebar: React.FC = () => {
   const activeId = useChatStore((s) => s.activeConversationId);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
   const createChannel = useChatStore((s) => s.createChannel);
+  const togglePin = useChatStore((s) => s.togglePin);
+  const toggleMute = useChatStore((s) => s.toggleMute);
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [showCreateMenu, setShowCreateMenu] = useState(false);
@@ -34,8 +37,14 @@ export const ConversationSidebar: React.FC = () => {
   const [channelName, setChannelName] = useState('');
   const [channelError, setChannelError] = useState('');
   const [creatingChannel, setCreatingChannel] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    conversation: Conversation;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const toggleSection = (key: string) => {
+    if (key === 'pinned') return;
     setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -338,7 +347,7 @@ export const ConversationSidebar: React.FC = () => {
         {SECTIONS.map((section) => {
           const items = conversations.filter(section.filter);
           if (items.length === 0) return null;
-          const collapsed = collapsedSections[section.key];
+          const collapsed = section.key === 'pinned' ? false : collapsedSections[section.key];
 
           return (
             <div key={section.key}>
@@ -389,12 +398,31 @@ export const ConversationSidebar: React.FC = () => {
                     conversation={conv}
                     isActive={conv.id === activeId}
                     onClick={() => setActiveConversation(conv.id)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setContextMenu({
+                        conversation: conv,
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
                   />
                 ))}
             </div>
           );
         })}
       </div>
+
+      {contextMenu && (
+        <ConversationContextMenu
+          conversation={contextMenu.conversation}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onTogglePin={() => void togglePin(contextMenu.conversation.id)}
+          onToggleMute={() => void toggleMute(contextMenu.conversation.id)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </aside>
   );
 };
@@ -404,12 +432,14 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onClick: () => void;
+  onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
 const ConversationItem: React.FC<ConversationItemProps> = ({
   conversation,
   isActive,
   onClick,
+  onContextMenu,
 }) => {
   const [hovered, setHovered] = useState(false);
   const currentUserId = useChatStore((s) => s.currentUser?.id ?? '');
@@ -425,6 +455,7 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
   return (
     <button
       onClick={onClick}
+      onContextMenu={onContextMenu}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -470,9 +501,12 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
         >
           <span
             style={{
-              fontWeight: isActive
-                ? ('var(--font-weight-bold)' as any)
-                : ('var(--font-weight-semibold)' as any),
+              fontWeight:
+                conversation.isMuted && conversation.unreadCount > 0
+                  ? ('var(--font-weight-normal)' as any)
+                  : isActive
+                    ? ('var(--font-weight-bold)' as any)
+                    : ('var(--font-weight-semibold)' as any),
               fontSize: 'var(--font-size-md)',
               color: 'var(--text-primary)',
               overflow: 'hidden',
@@ -483,6 +517,19 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
           >
             {conversation.name}
           </span>
+          {conversation.isMuted && (
+            <span
+              title="免打扰"
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: 'var(--font-size-xs)',
+                flexShrink: 0,
+                marginLeft: 'var(--space-xs)',
+              }}
+            >
+              🔕
+            </span>
+          )}
         </div>
         <span
           style={{
@@ -501,7 +548,10 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
         </span>
       </div>
 
-      <UnreadBadge count={conversation.unreadCount} showDot={conversation.isMuted && conversation.unreadCount > 0} />
+      <UnreadBadge
+        count={conversation.unreadCount}
+        showDot={conversation.isMuted && conversation.unreadCount > 0}
+      />
     </button>
   );
 };

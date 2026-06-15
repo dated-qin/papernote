@@ -175,6 +175,41 @@ func (s *Service) GetDetail(userID, convID int64) (*ListItem, []MemberResp, erro
 	return detail, members, nil
 }
 
+// ---------- 会话个人设置 ----------
+
+func (s *Service) TogglePin(userID, convID int64) (bool, error) {
+	return s.toggleMemberBool(userID, convID, "pinned")
+}
+
+func (s *Service) ToggleMute(userID, convID int64) (bool, error) {
+	return s.toggleMemberBool(userID, convID, "muted")
+}
+
+func (s *Service) toggleMemberBool(userID, convID int64, column string) (bool, error) {
+	var cm ConversationMember
+	if err := s.db.Where("conversation_id = ? AND user_id = ?", convID, userID).
+		First(&cm).Error; err != nil {
+		return false, errors.New("非会话成员")
+	}
+
+	next := false
+	switch column {
+	case "pinned":
+		next = !cm.Pinned
+	case "muted":
+		next = !cm.Muted
+	default:
+		return false, errors.New("未知设置")
+	}
+
+	if err := s.db.Model(&ConversationMember{}).
+		Where("conversation_id = ? AND user_id = ?", convID, userID).
+		Update(column, next).Error; err != nil {
+		return false, err
+	}
+	return next, nil
+}
+
 // ---------- 修改群信息 ----------
 
 func (s *Service) UpdateGroup(userID, convID int64, req UpdateGroupReq) error {

@@ -146,4 +146,14 @@ export const handlers = [
   http.post(`${API}/api/conversations/channel`, () => {
     return HttpResponse.json({ code: 0, data: { id: 4 } });
   }),
+
+  // PUT /api/conversations/:id/pin
+  http.put(`${API}/api/conversations/:id/pin`, () => {
+    return HttpResponse.json({ code: 0, data: { pinned: true } });
+  }),
+
+  // PUT /api/conversations/:id/mute
+  http.put(`${API}/api/conversations/:id/mute`, () => {
+    return HttpResponse.json({ code: 0, data: { muted: true } });
+  }),
 ];

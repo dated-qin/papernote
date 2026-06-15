@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useChatStore } from '../chatStore';
 import { wsClient } from '../../utils/ws';
+import http from '../../utils/http';
 
 // 模拟 wsClient（避免 WebSocket 连接尝试）
 vi.mock('../../utils/ws', () => ({
@@ -101,6 +102,35 @@ describe('chatStore', () => {
         conversations: s.conversations.map((c) => ({ ...c, unreadCount: 0 })),
       }));
       expect(useChatStore.getState().getUnreadTotal()).toBe(0);
+    });
+
+    it('should exclude muted conversations', () => {
+      useChatStore.setState((s) => ({
+        conversations: s.conversations.map((c) =>
+          c.id === '2' ? { ...c, unreadCount: 5, isMuted: true } : c,
+        ),
+      }));
+      expect(useChatStore.getState().getUnreadTotal()).toBe(3);
+    });
+  });
+
+  describe('conversation preferences', () => {
+    it('should toggle pinned state', async () => {
+      vi.mocked(http.put).mockResolvedValueOnce({ code: 0, message: 'ok', data: { pinned: true } });
+
+      await useChatStore.getState().togglePin('1');
+
+      expect(http.put).toHaveBeenCalledWith('/api/conversations/1/pin');
+      expect(useChatStore.getState().conversations.find((c) => c.id === '1')?.isPinned).toBe(true);
+    });
+
+    it('should toggle muted state', async () => {
+      vi.mocked(http.put).mockResolvedValueOnce({ code: 0, message: 'ok', data: { muted: true } });
+
+      await useChatStore.getState().toggleMute('1');
+
+      expect(http.put).toHaveBeenCalledWith('/api/conversations/1/mute');
+      expect(useChatStore.getState().conversations.find((c) => c.id === '1')?.isMuted).toBe(true);
     });
   });
 

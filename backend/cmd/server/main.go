@@ -117,6 +117,8 @@ func main() {
 			conversations.POST("/dm", convHandler.CreateDM)
 			conversations.POST("/channel", convHandler.CreateChannel)
 			conversations.GET("/:id", convHandler.GetDetail)
+			conversations.PUT("/:id/pin", convHandler.TogglePin)
+			conversations.PUT("/:id/mute", convHandler.ToggleMute)
 			conversations.PATCH("/:id", convHandler.UpdateGroup)
 			conversations.DELETE("/:id", convHandler.DeleteGroup)
 			conversations.GET("/:id/members", convHandler.GetMembers)

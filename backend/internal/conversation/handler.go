@@ -96,6 +96,42 @@ func (h *Handler) GetDetail(c *gin.Context) {
 	}})
 }
 
+// ---------- PUT /api/conversations/:id/pin ----------
+
+func (h *Handler) TogglePin(c *gin.Context) {
+	userID := getInt64(c, "user_id")
+	convID, err := paramInt64(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的会话ID"})
+		return
+	}
+
+	pinned, err := h.svc.TogglePin(userID, convID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"pinned": pinned}})
+}
+
+// ---------- PUT /api/conversations/:id/mute ----------
+
+func (h *Handler) ToggleMute(c *gin.Context) {
+	userID := getInt64(c, "user_id")
+	convID, err := paramInt64(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的会话ID"})
+		return
+	}
+
+	muted, err := h.svc.ToggleMute(userID, convID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"muted": muted}})
+}
+
 // ---------- PATCH /api/conversations/:id ----------
 
 func (h *Handler) UpdateGroup(c *gin.Context) {
