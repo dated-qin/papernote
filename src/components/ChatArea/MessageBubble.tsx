@@ -177,37 +177,52 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
             ↩
           </ToolbarButton>
           {/* 更多操作 */}
-          <ToolbarButton title="更多" onClick={() => setShowActionsMenu(!showActionsMenu)}>
-            ⋯
-          </ToolbarButton>
+          <div style={{ position: 'relative' }}>
+            <ToolbarButton title="更多" onClick={() => setShowActionsMenu(!showActionsMenu)}>
+              ⋯
+            </ToolbarButton>
+            {showActionsMenu && (
+              <div style={{
+                position: 'absolute',
+                top: 32,
+                right: 0,
+                backgroundColor: 'var(--bg-primary)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--shadow-lg)',
+                zIndex: 30,
+                minWidth: 140,
+                padding: '4px 0',
+              }}>
+                {message.type === 'text' && (
+                  <MenuItem label="📋 复制" onClick={() => {
+                    void navigator.clipboard.writeText(message.content);
+                    setShowActionsMenu(false);
+                  }} />
+                )}
+                {message.type === 'text' && conversations.filter((c) => c.id !== message.conversationId).length > 0 && (
+                  <ForwardMenu
+                    conversations={conversations.filter((c) => c.id !== message.conversationId)}
+                    onForward={(targetConvId) => {
+                      forwardMessage(message.conversationId, message.id, targetConvId);
+                      setShowActionsMenu(false);
+                    }}
+                  />
+                )}
+                {isOwn && message.type === 'text' && message.status !== 'failed' && (
+                  <MenuItem label="↩ 撤回" onClick={() => {
+                    void recallMessage(message.id);
+                    setShowActionsMenu(false);
+                  }} color="var(--accent-red)" />
+                )}
+                <MenuItem label="🗑 删除" onClick={() => {
+                  deleteMessageLocally(message.conversationId, message.id);
+                  setShowActionsMenu(false);
+                }} color="var(--text-muted)" />
+              </div>
+            )}
+          </div>
         </div>
-      )}
-
-      {/* 操作菜单 */}
-      {showActionsMenu && (
-        <MessageActionsMenu
-          message={message}
-          isOwn={isOwn}
-          conversationId={message.conversationId}
-          conversations={conversations}
-          onCopy={() => {
-            void navigator.clipboard.writeText(message.content);
-            setShowActionsMenu(false);
-          }}
-          onForward={(targetConvId: string) => {
-            forwardMessage(message.conversationId, message.id, targetConvId);
-            setShowActionsMenu(false);
-          }}
-          onRecall={() => {
-            void recallMessage(message.id);
-            setShowActionsMenu(false);
-          }}
-          onDelete={() => {
-            deleteMessageLocally(message.conversationId, message.id);
-            setShowActionsMenu(false);
-          }}
-          onClose={() => setShowActionsMenu(false)}
-        />
       )}
 
       {/* Emoji Picker 弹出 */}
@@ -296,167 +311,54 @@ const statusStyle: React.CSSProperties = {
 
 // ============ 消息操作菜单 ============
 
-interface MessageActionsMenuProps {
-  message: Message;
-  isOwn: boolean;
-  conversationId: string;
-  conversations: import('../../types').Conversation[];
-  onCopy: () => void;
+// ============ 菜单项 ============
+
+const MenuItem: React.FC<{ label: string; onClick: () => void; color?: string }> = ({
+  label, onClick, color,
+}) => (
+  <button
+    onClick={onClick}
+    style={{
+      width: '100%',
+      height: 34,
+      padding: '0 12px',
+      display: 'flex',
+      alignItems: 'center',
+      border: 'none',
+      backgroundColor: 'transparent',
+      color: color || 'var(--text-primary)',
+      fontSize: 'var(--font-size-sm)',
+      cursor: 'pointer',
+      fontFamily: 'var(--font-family)',
+      whiteSpace: 'nowrap',
+      textAlign: 'left',
+    }}
+    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+  >
+    {label}
+  </button>
+);
+
+const ForwardMenu: React.FC<{
+  conversations: Array<{ id: string; name: string; type: string }>;
   onForward: (targetConvId: string) => void;
-  onRecall: () => void;
-  onDelete: () => void;
-  onClose: () => void;
-}
-
-const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
-  message,
-  isOwn,
-  conversationId,
-  conversations,
-  onCopy,
-  onForward,
-  onRecall,
-  onDelete,
-  onClose,
-}) => {
-  const [showForwardList, setShowForwardList] = useState(false);
-  const canRecall = isOwn && message.type === 'text' && message.status !== 'failed';
-  const forwardTargets = conversations.filter((c) => c.id !== conversationId);
-
-  // ESC 关闭
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
-  const menuStyle: React.CSSProperties = {
-    position: 'fixed',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    backgroundColor: 'var(--bg-primary)',
-    border: '1px solid var(--border-default)',
-    borderRadius: 'var(--radius-md)',
-    boxShadow: 'var(--shadow-lg)',
-    zIndex: 30,
-    minWidth: 160,
-    padding: '4px 0',
-    overflow: 'hidden',
-  };
-
-  if (showForwardList) {
-    return (
-      <>
-        <div style={backdropStyle} onClick={onClose} />
-        <div style={menuStyle}>
-          <div style={menuHeaderStyle}>
-            <button onClick={() => setShowForwardList(false)} style={backButtonStyle}>← 返回</button>
-            <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)' }}>转发到</span>
-          </div>
-          {forwardTargets.length === 0 ? (
-            <div style={{ padding: '8px 12px', fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
-              没有可转发的会话
-            </div>
-          ) : (
-            forwardTargets.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => onForward(c.id)}
-                style={menuItemStyle}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                {c.type === 'channel' ? '🏠' : '💬'} {c.name}
-              </button>
-            ))
-          )}
-        </div>
-      </>
-    );
+}> = ({ conversations, onForward }) => {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return <MenuItem label="↗ 转发" onClick={() => setOpen(true)} />;
   }
-
   return (
-    <>
-      <div style={backdropStyle} onClick={onClose} />
-      <div style={menuStyle}>
-        {message.type === 'text' && (
-          <button onClick={onCopy} style={menuItemStyle}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-          >
-            📋 复制
-          </button>
-        )}
-        {message.type === 'text' && forwardTargets.length > 0 && (
-          <button onClick={() => setShowForwardList(true)} style={menuItemStyle}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-          >
-            ↗ 转发
-          </button>
-        )}
-        {canRecall && (
-          <button onClick={onRecall} style={{ ...menuItemStyle, color: 'var(--accent-red)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-          >
-            ↩ 撤回
-          </button>
-        )}
-        {isOwn && (
-          <button onClick={onDelete} style={{ ...menuItemStyle, color: 'var(--text-muted)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-          >
-            🗑 删除
-          </button>
-        )}
-      </div>
-    </>
+    <div>
+      <MenuItem label="← 返回" onClick={() => setOpen(false)} color="var(--text-muted)" />
+      {conversations.map((c) => (
+        <MenuItem
+          key={c.id}
+          label={`${c.type === 'channel' ? '🏠' : '💬'} ${c.name}`}
+          onClick={() => onForward(c.id)}
+        />
+      ))}
+    </div>
   );
-};
-
-const menuItemStyle: React.CSSProperties = {
-  width: '100%',
-  height: 34,
-  padding: '0 12px',
-  display: 'flex',
-  alignItems: 'center',
-  border: 'none',
-  backgroundColor: 'transparent',
-  color: 'var(--text-primary)',
-  fontSize: 'var(--font-size-sm)',
-  cursor: 'pointer',
-  fontFamily: 'var(--font-family)',
-  whiteSpace: 'nowrap',
-  textAlign: 'left' as const,
-};
-
-const menuHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '4px 12px 8px 12px',
-  borderBottom: '1px solid var(--border-default)',
-  marginBottom: 4,
-};
-
-const backButtonStyle: React.CSSProperties = {
-  border: 'none',
-  backgroundColor: 'transparent',
-  color: 'var(--accent-link)',
-  fontSize: 'var(--font-size-sm)',
-  cursor: 'pointer',
-  padding: 0,
-  fontFamily: 'var(--font-family)',
-};
-
-const backdropStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 29,
 };
 
