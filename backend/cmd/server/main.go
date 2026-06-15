@@ -57,15 +57,15 @@ func main() {
 	fileSvc := file.NewService(database, ossClient)
 	fileHandler := file.NewHandler(fileSvc)
 
-	groupSvc := group.NewService(database, rdb)
-	groupHandler := group.NewHandler(groupSvc)
-
 	// WS 消息发送适配器：将 message.Service 适配为 ws.MessageSender 接口
 	msgSender := &wsMsgSender{svc: msgSvc}
 
 	// ---------- WebSocket Hub ----------
 	hub := ws.NewHub(database, rdb, cfg.JWTSecret, msgSender)
 	go hub.Run()
+
+	groupSvc := group.NewService(database, rdb, &wsGroupNotifier{hub: hub})
+	groupHandler := group.NewHandler(groupSvc)
 
 	userSvc := user.NewService(database, rdb, &wsUserNotifier{hub: hub})
 	userHandler := user.NewHandler(userSvc)
@@ -209,4 +209,12 @@ type wsUserNotifier struct {
 
 func (n *wsUserNotifier) NotifyUser(userID int64, action string, data map[string]interface{}) {
 	n.hub.SendToUser(userID, ws.Envelope{Action: action, Data: data})
+}
+
+type wsGroupNotifier struct {
+	hub *ws.Hub
+}
+
+func (n *wsGroupNotifier) NotifyConversation(convID int64, action string, data map[string]interface{}) {
+	n.hub.BroadcastToConversation(convID, ws.Envelope{Action: action, Data: data})
 }

@@ -2,20 +2,31 @@
    纸条 PaperNote — 聊天主区域
    ============================================ */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SearchOutlined } from '@ant-design/icons';
+import { NotificationOutlined, SearchOutlined } from '@ant-design/icons';
 import { useChatStore } from '../../store/chatStore';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import type { Announcement } from '../../types';
 
 interface ChatAreaProps {
   onOpenSearch?: (conversationId?: string) => void;
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
+  const navigate = useNavigate();
   const activeConversationId = useChatStore((s) => s.activeConversationId);
   const conversation = useChatStore((s) => s.getActiveConversation());
+  const announcements = useChatStore((s) =>
+    activeConversationId ? s.announcementsByConversation[activeConversationId] : undefined,
+  );
+  const getAnnouncements = useChatStore((s) => s.getAnnouncements);
+
+  useEffect(() => {
+    if (!activeConversationId || conversation?.type !== 'channel' || announcements) return;
+    void getAnnouncements(activeConversationId);
+  }, [activeConversationId, announcements, conversation?.type, getAnnouncements]);
 
   if (!activeConversationId || !conversation) {
     return (
@@ -35,6 +46,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
     );
   }
 
+  const latestAnnouncement =
+    conversation.type === 'channel' ? announcements?.[0] : undefined;
+
   return (
     <div
       style={{
@@ -46,11 +60,86 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {
       }}
     >
       <ChatHeader onOpenSearch={onOpenSearch} />
+      {latestAnnouncement && (
+        <AnnouncementBar
+          announcement={latestAnnouncement}
+          onOpen={() => navigate(`/channel/${conversation.id}/settings`)}
+        />
+      )}
       <MessageList />
       <MessageInput />
     </div>
   );
 };
+
+const AnnouncementBar: React.FC<{
+  announcement: Announcement;
+  onOpen: () => void;
+}> = ({ announcement, onOpen }) => (
+  <div
+    style={{
+      minHeight: 38,
+      padding: '6px var(--space-lg)',
+      borderBottom: '1px solid var(--border-default)',
+      backgroundColor: 'var(--bg-secondary)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 'var(--space-sm)',
+      flexShrink: 0,
+      minWidth: 0,
+    }}
+  >
+    <NotificationOutlined style={{ color: 'var(--accent-primary)', fontSize: 15 }} />
+    <span
+      style={{
+        color: 'var(--text-secondary)',
+        fontSize: 'var(--font-size-sm)',
+        fontWeight: 'var(--font-weight-semibold)' as React.CSSProperties['fontWeight'],
+        flexShrink: 0,
+      }}
+    >
+      群公告
+    </span>
+    <span
+      title={announcement.content}
+      style={{
+        color: 'var(--text-primary)',
+        fontSize: 'var(--font-size-sm)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        minWidth: 0,
+        flex: 1,
+      }}
+    >
+      {announcement.content}
+    </span>
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{
+        height: 26,
+        padding: '0 var(--space-sm)',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid var(--border-default)',
+        backgroundColor: 'transparent',
+        color: 'var(--accent-link)',
+        fontSize: 'var(--font-size-sm)',
+        cursor: 'pointer',
+        fontFamily: 'var(--font-family)',
+        flexShrink: 0,
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
+      }}
+    >
+      查看详情
+    </button>
+  </div>
+);
 
 // ============ 聊天头部 ============
 const ChatHeader: React.FC<ChatAreaProps> = ({ onOpenSearch }) => {

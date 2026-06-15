@@ -308,6 +308,10 @@ func (h *Hub) SendToUser(userID int64, env Envelope) {
 	}
 }
 
+func (h *Hub) BroadcastToConversation(convID int64, env Envelope, excludeUserIDs ...int64) {
+	h.broadcastToConversation(convID, env, excludeUserIDs...)
+}
+
 func (h *Hub) broadcastToConversation(convID int64, env Envelope, excludeUserIDs ...int64) {
 	// 查会话所有成员
 	var memberIDs []int64

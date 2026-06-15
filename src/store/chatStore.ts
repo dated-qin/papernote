@@ -18,6 +18,7 @@ import type {
   MessageType,
   SearchMessageResult,
   UpdateProfileData,
+  Announcement,
 } from '../types';
 
 // http 将在 auth / conversations / messages action 实现中使用（详见后续上下文）
@@ -107,6 +108,19 @@ function apiToFriendRequest(raw: Record<string, unknown>): FriendRequest {
   };
 }
 
+function apiToAnnouncement(raw: Record<string, unknown>): Announcement {
+  return {
+    id: String(raw.id),
+    content: (raw.content as string) ?? '',
+    publisherId: String(raw.publisher_id),
+    publisherName: (raw.publisher_name as string) ?? '',
+    readCount: (raw.read_count as number) ?? 0,
+    totalCount: (raw.total_count as number) ?? 0,
+    createdAt: new Date(raw.created_at as string).getTime(),
+    updatedAt: new Date(raw.updated_at as string).getTime(),
+  };
+}
+
 // ---------- 工具函数 ----------
 
 /** 将主题应用到 document & 持久化到 localStorage */
@@ -134,6 +148,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   conversations: [],
   activeConversationId: null,
   messagesByConversation: {},
+  announcementsByConversation: {},
   lastSeq: 0,
   highlightedMessageId: null,
   activeQuote: null,
@@ -167,6 +182,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       conversations: [],
       activeConversationId: null,
       messagesByConversation: {},
+      announcementsByConversation: {},
       lastSeq: 0,
       activeQuote: null,
       users: {},
@@ -723,16 +739,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       `/api/conversations/${convId}/announcements`,
     );
     if (res.code === 0) {
-      return (res.data.announcements ?? []).map((a: Record<string, unknown>) => ({
-        id: String(a.id),
-        content: (a.content as string) ?? '',
-        publisherId: String(a.publisher_id),
-        publisherName: (a.publisher_name as string) ?? '',
-        readCount: (a.read_count as number) ?? 0,
-        totalCount: (a.total_count as number) ?? 0,
-        createdAt: new Date(a.created_at as string).getTime(),
-        updatedAt: new Date(a.updated_at as string).getTime(),
+      const announcements = (res.data.announcements ?? []).map(apiToAnnouncement);
+      set((state) => ({
+        announcementsByConversation: {
+          ...state.announcementsByConversation,
+          [convId]: announcements,
+        },
       }));
+      return announcements;
     }
     return [];
   },
@@ -740,6 +754,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   /** 发布/更新群公告：POST /api/conversations/:id/announcements */
   publishAnnouncement: async (convId: string, content: string) => {
     await http.post(`/api/conversations/${convId}/announcements`, { content });
+    await get().getAnnouncements(convId);
   },
 
   /** 标记公告已读：POST /api/conversations/:id/announcements/:aid/read */
@@ -747,6 +762,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     await http.post(
       `/api/conversations/${convId}/announcements/${announcementId}/read`,
     );
+    await get().getAnnouncements(convId);
   },
 
   /** 解散群聊：DELETE /api/conversations/:id */
@@ -964,6 +980,23 @@ wsClient.on('msg_status', (env) => {
     useChatStore.setState((s) => ({
       messagesByConversation: { ...s.messagesByConversation, [convId]: newMsgs },
     }));
+  }
+});
+
+/** 群公告更新实时推送 */
+wsClient.on('announcement_updated', (env) => {
+  const data = env.data as Record<string, unknown>;
+  const convId = String(data.conversation_id ?? '');
+  if (!convId) return;
+
+  void useChatStore.getState().getAnnouncements(convId);
+
+  if (isElectron() && !document.hasFocus()) {
+    const conv = useChatStore.getState().conversations.find((c) => c.id === convId);
+    window.electronAPI?.showNotification(
+      '纸条 · 群公告更新',
+      conv ? `${conv.name} 发布了新公告` : '有群聊发布了新公告',
+    );
   }
 });
 

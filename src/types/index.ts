@@ -208,6 +208,7 @@ export interface ChatStore {
 
   // ---- 消息 ----
   messagesByConversation: Record<string, Message[]>;
+  announcementsByConversation: Record<string, Announcement[]>;
   lastSeq: number;
   highlightedMessageId: string | null;
   activeQuote: ActiveQuote | null;

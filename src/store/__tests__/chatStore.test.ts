@@ -66,6 +66,7 @@ describe('chatStore', () => {
         },
       ],
       messagesByConversation: {},
+      announcementsByConversation: {},
       lastSeq: 0,
       activeQuote: null,
     });
@@ -185,6 +186,45 @@ describe('chatStore', () => {
       expect(http.get).toHaveBeenCalledWith('/api/friends');
       expect(http.get).toHaveBeenCalledWith('/api/conversations');
       expect(useChatStore.getState().users['2']?.nickname).toBe('Alice');
+    });
+  });
+
+  describe('announcement websocket events', () => {
+    it('should refresh cached announcements when a group announcement changes', async () => {
+      vi.mocked(http.get).mockResolvedValueOnce({
+        code: 0,
+        message: 'ok',
+        data: {
+          announcements: [
+            {
+              id: 11,
+              content: '今晚 8 点同步',
+              publisher_id: 1,
+              publisher_name: 'Owner',
+              read_count: 0,
+              total_count: 3,
+              created_at: '2026-06-15T09:00:00Z',
+              updated_at: '2026-06-15T09:00:00Z',
+            },
+          ],
+        },
+      });
+      const handler = getWsHandler('announcement_updated');
+
+      handler({
+        action: 'announcement_updated',
+        data: {
+          conversation_id: 2,
+          announcement_id: 11,
+          action: 'published',
+        },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(http.get).toHaveBeenCalledWith('/api/conversations/2/announcements');
+      expect(useChatStore.getState().announcementsByConversation['2'][0].content).toBe(
+        '今晚 8 点同步',
+      );
     });
   });
 

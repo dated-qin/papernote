@@ -11,12 +11,21 @@ import (
 )
 
 type Service struct {
-	db  *gorm.DB
-	rdb *redis.Client
+	db       *gorm.DB
+	rdb      *redis.Client
+	notifier ConversationNotifier
 }
 
-func NewService(db *gorm.DB, rdb *redis.Client) *Service {
-	return &Service{db: db, rdb: rdb}
+type ConversationNotifier interface {
+	NotifyConversation(convID int64, action string, data map[string]interface{})
+}
+
+func NewService(db *gorm.DB, rdb *redis.Client, notifier ...ConversationNotifier) *Service {
+	s := &Service{db: db, rdb: rdb}
+	if len(notifier) > 0 {
+		s.notifier = notifier[0]
+	}
+	return s
 }
 
 // ---------- 公告列表 ----------
@@ -83,7 +92,7 @@ func (s *Service) PublishAnnouncement(userID, convID int64, content string) (*An
 	var total int64
 	s.db.Table("conversation_members").Where("conversation_id = ?", convID).Count(&total)
 
-	return &AnnouncementResp{
+	resp := &AnnouncementResp{
 		ID:            ann.ID,
 		Content:       ann.Content,
 		PublisherID:   ann.PublisherID,
@@ -92,7 +101,9 @@ func (s *Service) PublishAnnouncement(userID, convID int64, content string) (*An
 		TotalCount:    int(total),
 		CreatedAt:     ann.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:     ann.UpdatedAt.Format(time.RFC3339),
-	}, nil
+	}
+	s.notifyAnnouncementUpdated(convID, ann.ID, "published")
+	return resp, nil
 }
 
 // ---------- 编辑公告 ----------
@@ -106,9 +117,19 @@ func (s *Service) UpdateAnnouncement(userID, annID int64, content string) error 
 	if ann.PublisherID != userID && !s.hasRole(ann.ConversationID, userID, "owner", "admin") {
 		return errors.New("无权限：仅发布者或群主/管理员可编辑")
 	}
-	return s.db.Model(&ann).Updates(map[string]interface{}{
-		"content": content, "updated_at": time.Now(),
-	}).Error
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&ann).Updates(map[string]interface{}{
+			"content": content, "updated_at": time.Now(),
+		}).Error; err != nil {
+			return err
+		}
+		return tx.Where("announcement_id = ?", ann.ID).Delete(&AnnouncementRead{}).Error
+	}); err != nil {
+		return err
+	}
+
+	s.notifyAnnouncementUpdated(ann.ConversationID, ann.ID, "updated")
+	return nil
 }
 
 // ---------- 标记已读 ----------
@@ -152,4 +173,15 @@ func (s *Service) hasRole(convID, userID int64, roles ...string) bool {
 		}
 	}
 	return false
+}
+
+func (s *Service) notifyAnnouncementUpdated(convID, annID int64, action string) {
+	if s.notifier == nil {
+		return
+	}
+	s.notifier.NotifyConversation(convID, "announcement_updated", map[string]interface{}{
+		"conversation_id": convID,
+		"announcement_id": annID,
+		"action":          action,
+	})
 }

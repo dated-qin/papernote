@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useChatStore } from '../store/chatStore';
 import { Avatar } from '../components/common';
-import type { GroupMember, Announcement, MemberRole } from '../types';
+import type { GroupMember, MemberRole } from '../types';
 
 // ---------- 内联样式 ----------
 
@@ -250,9 +250,11 @@ export const GroupSettingsPage: React.FC = () => {
   const publishAnnouncement = useChatStore((s) => s.publishAnnouncement);
   const markAnnouncementRead = useChatStore((s) => s.markAnnouncementRead);
   const dissolveGroup = useChatStore((s) => s.dissolveGroup);
+  const announcements = useChatStore((s) =>
+    convId ? s.announcementsByConversation[convId] ?? [] : [],
+  );
 
   const [members, setMembers] = useState<GroupMember[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [groupName, setGroupName] = useState(conversation?.name ?? '');
   const [groupDesc, setGroupDesc] = useState('');
   const [newAnnContent, setNewAnnContent] = useState('');
@@ -281,7 +283,6 @@ export const GroupSettingsPage: React.FC = () => {
     if (!convId) return;
     getMembers(convId).then(setMembers);
     getAnnouncements(convId).then((a) => {
-      setAnnouncements(a);
       // 自动标记最新公告已读
       if (a.length > 0) {
         markAnnouncementRead(convId, a[0].id);
@@ -501,7 +502,6 @@ export const GroupSettingsPage: React.FC = () => {
                 if (!newAnnContent.trim() || !convId) return;
                 await publishAnnouncement(convId, newAnnContent.trim());
                 setNewAnnContent('');
-                getAnnouncements(convId).then(setAnnouncements);
               }}
             >
               发布
