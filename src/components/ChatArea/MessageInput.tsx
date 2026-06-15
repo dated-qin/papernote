@@ -3,15 +3,25 @@
    工具栏（表情/@/图片/文件）+ TextEditor + SendButton + 文件上传
    ============================================ */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { IconButton } from '../common';
+import { MentionPicker, type MentionOption } from './MentionPicker';
 import { uploadFile } from '../../utils/upload';
 import { MAX_FILE_SIZE } from '../../utils/fileUtils';
+import type { GroupMember } from '../../types';
 
 export const MessageInput: React.FC = () => {
   const sendMessage = useChatStore((s) => s.sendMessage);
+  const activeConversationId = useChatStore((s) => s.activeConversationId);
+  const conversation = useChatStore((s) => s.getActiveConversation());
+  const currentUserId = useChatStore((s) => s.currentUser?.id ?? '');
+  const getMembers = useChatStore((s) => s.getMembers);
   const [value, setValue] = useState('');
+  const [members, setMembers] = useState<GroupMember[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -21,17 +31,46 @@ export const MessageInput: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
 
+  const mentionIds = parseMentionIds(value);
+  const currentMember = members.find((m) => m.userId === currentUserId);
+  const canMentionAll =
+    conversation?.type === 'channel' &&
+    (currentMember?.role === 'owner' || currentMember?.role === 'admin');
+
+  useEffect(() => {
+    if (!activeConversationId) {
+      setMembers([]);
+      return;
+    }
+    let cancelled = false;
+    getMembers(activeConversationId)
+      .then((nextMembers) => {
+        if (!cancelled) setMembers(nextMembers);
+      })
+      .catch(() => {
+        if (!cancelled) setMembers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeConversationId, getMembers]);
+
   const handleSend = useCallback(() => {
     const trimmed = value.trim();
     if (!trimmed) return;
-    sendMessage(trimmed);
+    sendMessage(trimmed, undefined, undefined, 'text', mentionIds);
     setValue('');
+    setMentionOpen(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [value, sendMessage]);
+  }, [mentionIds, sendMessage, value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionOpen && ['Enter', 'ArrowDown', 'ArrowUp', 'Escape'].includes(e.key)) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -39,10 +78,58 @@ export const MessageInput: React.FC = () => {
   };
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setValue(e.target.value);
+    const nextValue = e.target.value;
+    setValue(nextValue);
     const el = e.target;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    const trigger = getMentionTrigger(nextValue, el.selectionStart);
+    if (trigger) {
+      setMentionStart(trigger.start);
+      setMentionQuery(trigger.query);
+      setMentionOpen(true);
+    } else {
+      setMentionOpen(false);
+      setMentionStart(null);
+      setMentionQuery('');
+    }
+  };
+
+  const openMentionPicker = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const cursor = el.selectionStart;
+    const before = value.slice(0, cursor);
+    const after = value.slice(cursor);
+    const nextValue = `${before}@${after}`;
+    setValue(nextValue);
+    setMentionStart(cursor);
+    setMentionQuery('');
+    setMentionOpen(true);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(cursor + 1, cursor + 1);
+    });
+  };
+
+  const insertMention = (option: MentionOption) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const cursor = el.selectionStart;
+    const start = mentionStart ?? cursor;
+    const marker = `<@${option.id}|${option.label}> `;
+    const nextValue = `${value.slice(0, start)}${marker}${value.slice(cursor)}`;
+    const nextCursor = start + marker.length;
+    setValue(nextValue);
+    setMentionOpen(false);
+    setMentionStart(null);
+    setMentionQuery('');
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(nextCursor, nextCursor);
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    });
   };
 
   // ---------- 文件选择处理 ----------
@@ -122,7 +209,7 @@ export const MessageInput: React.FC = () => {
         <IconButton title="表情" size={32}>
           😊
         </IconButton>
-        <IconButton title="@提及" size={32}>
+        <IconButton title="@提及" size={32} onClick={openMentionPicker}>
           @
         </IconButton>
         <IconButton
@@ -206,7 +293,25 @@ export const MessageInput: React.FC = () => {
       )}
 
       {/* 输入行 */}
-      <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'flex-end' }}>
+      {mentionIds.length > 0 && (
+        <div style={mentionChipRowStyle}>
+          {mentionIds.map((id) => (
+            <span key={id} style={mentionChipStyle}>
+              @{id === 'all' ? '所有人' : getMemberName(members, id)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div style={{ position: 'relative', display: 'flex', gap: 'var(--space-sm)', alignItems: 'flex-end' }}>
+        <MentionPicker
+          open={mentionOpen}
+          query={mentionQuery}
+          members={members}
+          allowAll={canMentionAll}
+          onSelect={insertMention}
+          onClose={() => setMentionOpen(false)}
+        />
         <textarea
           ref={textareaRef}
           value={value}
@@ -265,4 +370,48 @@ export const MessageInput: React.FC = () => {
       </div>
     </div>
   );
+};
+
+function getMentionTrigger(text: string, cursor: number): { start: number; query: string } | null {
+  const before = text.slice(0, cursor);
+  const match = before.match(/(^|\s)@([^\s@<>]*)$/);
+  if (!match) return null;
+  const start = before.lastIndexOf('@');
+  return { start, query: match[2] ?? '' };
+}
+
+function parseMentionIds(text: string): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const regex = /<@(all|\d+)\|([^>]+)>/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    const id = match[1];
+    if (!seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+function getMemberName(members: GroupMember[], id: string): string {
+  const member = members.find((m) => m.userId === id);
+  return member?.nickname || member?.username || id;
+}
+
+const mentionChipRowStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 'var(--space-xs)',
+  flexWrap: 'wrap',
+  marginBottom: 'var(--space-sm)',
+};
+
+const mentionChipStyle: React.CSSProperties = {
+  borderRadius: 'var(--radius-sm)',
+  backgroundColor: 'var(--bg-active)',
+  color: 'var(--accent-link)',
+  fontSize: 'var(--font-size-xs)',
+  fontWeight: 'var(--font-weight-semibold)' as React.CSSProperties['fontWeight'],
+  padding: '2px 6px',
 };

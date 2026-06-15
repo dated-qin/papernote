@@ -68,6 +68,7 @@ func (s *Service) SendMessage(senderID int64, req SendMsgReq) (*MessageResp, err
 		ReplyTo:        req.ReplyTo,
 		ThreadRootID:   req.ThreadRootID,
 		FileID:         req.FileID,
+		MentionIDs:     req.MentionIDs,
 	}
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -217,6 +218,7 @@ func toResp(m Message) MessageResp {
 		ReplyTo:        m.ReplyTo,
 		ThreadRootID:   m.ThreadRootID,
 		ReplyCount:     m.ReplyCount,
+		MentionIDs:     m.MentionIDs,
 		Status:         m.MsgStatus,
 		CreatedAt:      m.CreatedAt.Format(time.RFC3339),
 	}

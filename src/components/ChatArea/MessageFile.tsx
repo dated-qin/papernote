@@ -344,8 +344,48 @@ export const MessageContentRouter: React.FC<MessageContentRouterProps> = ({
             margin: 0,
           }}
         >
-          {content}
+          <MentionText content={content} />
         </p>
       );
   }
+};
+
+const MentionText: React.FC<{ content: string }> = ({ content }) => {
+  const parts: React.ReactNode[] = [];
+  const mentionRegex = /<@(all|\d+)\|([^>]+)>/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+    parts.push(
+      <button
+        key={`${match[1]}-${match.index}`}
+        type="button"
+        title={match[1] === 'all' ? '@所有人' : `用户 ${match[1]}`}
+        style={{
+          border: 'none',
+          borderRadius: 'var(--radius-sm)',
+          backgroundColor: 'var(--bg-active)',
+          color: 'var(--accent-link)',
+          fontSize: 'inherit',
+          fontFamily: 'var(--font-family)',
+          fontWeight: 'var(--font-weight-semibold)' as React.CSSProperties['fontWeight'],
+          padding: '0 4px',
+          cursor: 'pointer',
+        }}
+      >
+        @{match[2]}
+      </button>,
+    );
+    lastIndex = mentionRegex.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return <>{parts}</>;
 };

@@ -241,7 +241,13 @@ export interface ChatStore {
   createChannel: (name: string, memberIds: string[]) => Promise<string>;
 
   // ---- 消息 ----
-  sendMessage: (content: string, quoteId?: string, threadRootId?: string, msgType?: MessageType) => void;
+  sendMessage: (
+    content: string,
+    quoteId?: string,
+    threadRootId?: string,
+    msgType?: MessageType,
+    mentionIds?: string[],
+  ) => void;
   fetchHistory: (conversationId: string, before?: string) => Promise<void>;
   searchMessages: (query: string, conversationId?: string) => Promise<SearchMessageResult[]>;
   jumpToMessage: (conversationId: string, messageId: string, message?: Message) => Promise<void>;

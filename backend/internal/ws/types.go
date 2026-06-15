@@ -42,6 +42,7 @@ type SendMsgData struct {
 	ReplyTo        *int64
 	ThreadRootID   *int64
 	FileID         *int64
+	MentionIDs     []string
 }
 
 // UserNotifier 在线状态通知接口

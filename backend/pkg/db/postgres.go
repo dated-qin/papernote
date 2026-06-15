@@ -35,6 +35,31 @@ func Connect(cfg *config.Config) *gorm.DB {
 		log.Fatalf("failed to ping PostgreSQL: %v", err)
 	}
 
+	ensureMessageMentionSchema(db)
+
 	log.Println("PostgreSQL connected successfully")
 	return db
+}
+
+func ensureMessageMentionSchema(db *gorm.DB) {
+	var exists bool
+	if err := db.Raw("SELECT to_regclass('public.messages') IS NOT NULL").Scan(&exists).Error; err != nil {
+		log.Fatalf("failed to inspect messages table: %v", err)
+	}
+	if !exists {
+		return
+	}
+
+	if err := db.Exec(`
+		ALTER TABLE messages
+		ADD COLUMN IF NOT EXISTS mention_ids JSONB NOT NULL DEFAULT '[]'::jsonb
+	`).Error; err != nil {
+		log.Fatalf("failed to ensure messages.mention_ids column: %v", err)
+	}
+	if err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_messages_mentions
+		ON messages USING gin(mention_ids)
+	`).Error; err != nil {
+		log.Fatalf("failed to ensure messages mention index: %v", err)
+	}
 }

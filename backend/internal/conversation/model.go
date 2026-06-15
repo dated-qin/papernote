@@ -51,11 +51,12 @@ type ListItem struct {
 }
 
 type LastMsg struct {
-	ID        int64  `json:"id"`
-	Content   string `json:"content"`
-	SenderID  int64  `json:"sender_id"`
-	MsgType   int16  `json:"msg_type"`
-	CreatedAt string `json:"created_at"`
+	ID         int64    `json:"id"`
+	Content    string   `json:"content"`
+	SenderID   int64    `json:"sender_id"`
+	MsgType    int16    `json:"msg_type"`
+	MentionIDs []string `json:"mention_ids"`
+	CreatedAt  string   `json:"created_at"`
 }
 
 type CreateDMReq struct {

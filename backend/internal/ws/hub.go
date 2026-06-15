@@ -171,6 +171,7 @@ func (h *Hub) handleSendMsg(c *Client, env Envelope) {
 	msgType := int16(getInt64(data, "msg_type"))
 	content := getString(data, "content")
 	clientMsgID := getString(data, "client_msg_id")
+	mentionIDs := normalizeMentionIDs(data["mention_ids"])
 
 	// 校验会话成员
 	if !h.isMember(convID, c.userID) {
@@ -188,6 +189,15 @@ func (h *Hub) handleSendMsg(c *Client, env Envelope) {
 		return
 	}
 
+	if containsMentionAll(mentionIDs) {
+		if h.conversationType(convID) != "channel" || !h.hasRole(convID, c.userID, "owner", "admin") {
+			c.sendJSON(Envelope{Action: "error", Data: map[string]interface{}{
+				"message": "只有群主或管理员可以 @所有人",
+			}})
+			return
+		}
+	}
+
 	msgID, _, err := h.msgSender.SendMessage(c.userID, SendMsgData{
 		ConversationID: convID,
 		MsgType:        msgType,
@@ -195,6 +205,7 @@ func (h *Hub) handleSendMsg(c *Client, env Envelope) {
 		ReplyTo:        int64Ptr(data, "reply_to"),
 		ThreadRootID:   int64Ptr(data, "thread_root_id"),
 		FileID:         int64Ptr(data, "file_id"),
+		MentionIDs:     mentionIDs,
 	})
 	if err != nil {
 		c.sendJSON(Envelope{Action: "error", Data: map[string]interface{}{
@@ -220,6 +231,7 @@ func (h *Hub) handleSendMsg(c *Client, env Envelope) {
 			"content":         content,
 			"reply_to":        int64Ptr(data, "reply_to"),
 			"thread_root_id":  int64Ptr(data, "thread_root_id"),
+			"mention_ids":     mentionIDs,
 			"created_at":      time.Now().Format(time.RFC3339),
 		},
 	})
@@ -373,6 +385,26 @@ func (h *Hub) isMuted(convID, userID int64) bool {
 	return exists > 0
 }
 
+func (h *Hub) conversationType(convID int64) string {
+	var convType string
+	h.db.Table("conversations").Select("type").Where("id = ?", convID).Scan(&convType)
+	return convType
+}
+
+func (h *Hub) hasRole(convID, userID int64, roles ...string) bool {
+	var role string
+	h.db.Table("conversation_members").
+		Select("role").
+		Where("conversation_id = ? AND user_id = ?", convID, userID).
+		Scan(&role)
+	for _, r := range roles {
+		if role == r {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *Hub) checkRateLimit(userID int64) bool {
 	ctx := context.Background()
 	key := fmt.Sprintf("ratelimit:ws:%d", userID)
@@ -415,4 +447,45 @@ func int64Ptr(m map[string]interface{}, key string) *int64 {
 		return nil
 	}
 	return &n
+}
+
+func normalizeMentionIDs(v interface{}) []string {
+	raw, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		id := ""
+		switch x := item.(type) {
+		case string:
+			id = x
+		case float64:
+			id = strconv.FormatInt(int64(x), 10)
+		}
+		if id == "" {
+			continue
+		}
+		if id != "all" {
+			if n, err := strconv.ParseInt(id, 10, 64); err != nil || n <= 0 {
+				continue
+			}
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+func containsMentionAll(ids []string) bool {
+	for _, id := range ids {
+		if id == "all" {
+			return true
+		}
+	}
+	return false
 }

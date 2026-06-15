@@ -192,6 +192,7 @@ func (s *wsMsgSender) SendMessage(senderID int64, data ws.SendMsgData) (int64, i
 		ReplyTo:        data.ReplyTo,
 		ThreadRootID:   data.ThreadRootID,
 		FileID:         data.FileID,
+		MentionIDs:     data.MentionIDs,
 	})
 	if err != nil {
 		return 0, 0, err

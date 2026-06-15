@@ -412,8 +412,14 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
   onClick,
 }) => {
   const [hovered, setHovered] = useState(false);
+  const currentUserId = useChatStore((s) => s.currentUser?.id ?? '');
+  const wasMentioned =
+    conversation.unreadCount > 0 &&
+    !!conversation.lastMessage?.mentionIds?.some(
+      (id) => id === currentUserId || id === 'all',
+    );
   const lastMsgPreview = conversation.lastMessage
-    ? truncate(conversation.lastMessage.content, 30)
+    ? truncate(formatMentionPreview(conversation.lastMessage.content), 30)
     : '暂无消息';
 
   return (
@@ -489,7 +495,9 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
             marginTop: 2,
           }}
         >
-          {conversation.draft ? `[草稿] ${conversation.draft}` : lastMsgPreview}
+          {conversation.draft
+            ? `[草稿] ${conversation.draft}`
+            : `${wasMentioned ? '[@你] ' : ''}${lastMsgPreview}`}
         </span>
       </div>
 
@@ -500,4 +508,8 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
 
 function truncate(text: string, maxLen: number): string {
   return text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
+}
+
+function formatMentionPreview(content: string): string {
+  return content.replace(/<@(all|\d+)\|([^>]+)>/g, '@$2');
 }

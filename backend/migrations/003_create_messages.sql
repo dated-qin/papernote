@@ -13,12 +13,14 @@ CREATE TABLE messages (
     reply_to        BIGINT REFERENCES messages(id),
     thread_root_id  BIGINT REFERENCES messages(id),
     reply_count     INT NOT NULL DEFAULT 0,
+    mention_ids     JSONB NOT NULL DEFAULT '[]'::jsonb,
     msg_status      SMALLINT NOT NULL DEFAULT 0,  -- 0正常 1撤回
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at DESC);
 CREATE INDEX idx_messages_thread ON messages(thread_root_id);
+CREATE INDEX idx_messages_mentions ON messages USING gin(mention_ids);
 CREATE INDEX idx_messages_search ON messages USING gin(to_tsvector('simple', content));
 
 -- 消息回应表（emoji 互动）

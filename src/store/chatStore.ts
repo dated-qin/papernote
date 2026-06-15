@@ -62,6 +62,7 @@ function apiToConversation(raw: Record<string, unknown>): Conversation {
           content: lastMsg.content as string,
           status: 'sent',
           createdAt: new Date(lastMsg.created_at as string).getTime(),
+          mentionIds: apiToStringArray(lastMsg.mention_ids),
         }
       : undefined,
   };
@@ -80,6 +81,7 @@ function apiToMessage(raw: Record<string, unknown>): Message {
     quoteId: raw.reply_to ? String(raw.reply_to) : undefined,
     threadRootId: raw.thread_root_id ? String(raw.thread_root_id) : undefined,
     replyCount: (raw.reply_count as number) ?? 0,
+    mentionIds: apiToStringArray(raw.mention_ids),
   };
 }
 
@@ -97,6 +99,12 @@ function apiToSearchMessage(raw: Record<string, unknown>): SearchMessageResult {
 function applyTheme(theme: 'light' | 'dark'): void {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('theme', theme);
+}
+
+function apiToStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const ids = value.map((id) => String(id)).filter(Boolean);
+  return ids.length > 0 ? ids : undefined;
 }
 
 // ---------- Store 创建 ----------
@@ -258,7 +266,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
    * 3. 服务端返回 new_msg 后由 ws handler 更新状态
    * 4. 5 秒超时自动标记为 failed
    */
-  sendMessage: (content: string, quoteId?: string, threadRootId?: string, msgType?: MessageType) => {
+  sendMessage: (
+    content: string,
+    quoteId?: string,
+    threadRootId?: string,
+    msgType?: MessageType,
+    mentionIds?: string[],
+  ) => {
     const { currentUser, activeConversationId, messagesByConversation } = get();
     if (!activeConversationId || !currentUser || !content.trim()) return;
 
@@ -275,6 +289,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       createdAt: Date.now(),
       quoteId,
       threadRootId,
+      mentionIds,
     };
 
     // 乐观插入到消息列表
@@ -294,6 +309,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       content: pendingMsg.content,
       reply_to: quoteId ? parseInt(quoteId, 10) : null,
       thread_root_id: threadRootId ? parseInt(threadRootId, 10) : null,
+      mention_ids: mentionIds ?? [],
     });
 
     // 5 秒超时检测
@@ -361,6 +377,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         ...messagesByConversation,
         [convId]: [...msgs, message],
       },
+      conversations: get().conversations.map((c) =>
+        c.id === convId ? { ...c, lastMessage: message } : c,
+      ),
       // 更新 lastSeq（WebSocket 下发的 new_msg 携带 seq）
       lastSeq: wsClient.getLastSeq(),
     });
@@ -746,6 +765,7 @@ wsClient.on('new_msg', (env) => {
     createdAt: apiMsg.created_at ? new Date(apiMsg.created_at as string).getTime() : Date.now(),
     quoteId: apiMsg.reply_to ? String(apiMsg.reply_to) : undefined,
     threadRootId: apiMsg.thread_root_id ? String(apiMsg.thread_root_id) : undefined,
+    mentionIds: apiToStringArray(apiMsg.mention_ids),
   };
 
   if (clientMsgId) {
@@ -773,9 +793,13 @@ wsClient.on('new_msg', (env) => {
     const store = useChatStore.getState();
     const sender = store.users[message.senderId];
     const conv = store.conversations.find((c) => c.id === message.conversationId);
-    if (message.senderId !== store.currentUser?.id) {
+    const isMentioned =
+      !!store.currentUser &&
+      message.senderId !== store.currentUser.id &&
+      !!message.mentionIds?.some((id) => id === store.currentUser?.id || id === 'all');
+    if (message.senderId !== store.currentUser?.id && (!conv?.isMuted || isMentioned)) {
       const title = conv
-        ? `${sender?.nickname ?? '新消息'}${conv.type === 'channel' ? ` - ${conv.name}` : ''}`
+        ? `${isMentioned ? '[有人@你] ' : ''}${sender?.nickname ?? '新消息'}${conv.type === 'channel' ? ` - ${conv.name}` : ''}`
         : '纸条 · 新消息';
       const body =
         message.type === 'text'

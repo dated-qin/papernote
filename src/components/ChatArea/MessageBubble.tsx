@@ -27,6 +27,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
   const clearHighlightedMessage = useChatStore((s) => s.clearHighlightedMessage);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const isHighlighted = highlightedMessageId === message.id;
+  const isMentioned =
+    !isOwn && !!message.mentionIds?.some((id) => id === currentUserId || id === 'all');
 
   const convId = message.conversationId;
 
@@ -59,6 +61,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
     boxShadow: 'var(--shadow-sm)',
     outline: isHighlighted ? '2px solid var(--accent-primary)' : 'none',
     outlineOffset: 2,
+    borderLeft: isMentioned ? '3px solid var(--accent-link)' : undefined,
     position: 'relative',
     wordBreak: 'break-word',
     marginBottom: 'var(--space-xs)',

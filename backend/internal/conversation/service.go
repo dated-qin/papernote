@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -28,6 +29,7 @@ func (s *Service) List(userID int64, q ListQuery) ([]ListItem, error) {
 		MsgContent  *string    `gorm:"column:msg_content"`
 		MsgSenderID *int64     `gorm:"column:msg_sender_id"`
 		MsgType     *int16     `gorm:"column:msg_type"`
+		MsgMentions []byte     `gorm:"column:msg_mention_ids"`
 		MsgCreated  *time.Time `gorm:"column:msg_created_at"`
 	}
 
@@ -35,7 +37,7 @@ func (s *Service) List(userID int64, q ListQuery) ([]ListItem, error) {
 		Select(`c.*, cm.unread_count, cm.muted, cm.pinned,
 			lm.id AS msg_id,
 			lm.content AS msg_content, lm.sender_id AS msg_sender_id,
-			lm.msg_type, lm.created_at AS msg_created_at`).
+			lm.msg_type, lm.mention_ids AS msg_mention_ids, lm.created_at AS msg_created_at`).
 		Joins("JOIN conversation_members cm ON cm.conversation_id = c.id AND cm.user_id = ?", userID).
 		Joins("LEFT JOIN messages lm ON lm.id = c.last_msg_id")
 
@@ -62,11 +64,12 @@ func (s *Service) List(userID int64, q ListQuery) ([]ListItem, error) {
 		}
 		if r.MsgContent != nil {
 			item.LastMessage = &LastMsg{
-				ID:        *r.MsgID,
-				Content:   *r.MsgContent,
-				SenderID:  *r.MsgSenderID,
-				MsgType:   *r.MsgType,
-				CreatedAt: r.MsgCreated.Format(time.RFC3339),
+				ID:         *r.MsgID,
+				Content:    *r.MsgContent,
+				SenderID:   *r.MsgSenderID,
+				MsgType:    *r.MsgType,
+				MentionIDs: parseMentionIDs(r.MsgMentions),
+				CreatedAt:  r.MsgCreated.Format(time.RFC3339),
 			}
 		}
 		items[i] = item
@@ -395,6 +398,17 @@ func uniqueInt64s(ids []int64) []int64 {
 		out = append(out, id)
 	}
 	return out
+}
+
+func parseMentionIDs(raw []byte) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var ids []string
+	if err := json.Unmarshal(raw, &ids); err != nil {
+		return nil
+	}
+	return ids
 }
 
 // ---------- 声明使用 fmt ----------
