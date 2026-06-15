@@ -22,6 +22,18 @@ export const MessageGroup: React.FC<MessageGroupProps> = ({ messages, senderId, 
 
   const firstMsg = messages[0];
   const timeStr = formatTime(firstMsg.createdAt);
+  const isRecalled = firstMsg.content === '你撤回了一条消息' || firstMsg.content === '对方撤回了一条消息';
+
+  // 撤回消息：简化渲染，无头像/昵称/时间
+  if (isRecalled) {
+    return (
+      <div style={{ textAlign: 'center', padding: 'var(--space-xs) 0', marginBottom: 'var(--space-xs)' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', fontStyle: 'italic' }}>
+          {firstMsg.content}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div
