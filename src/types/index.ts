@@ -282,6 +282,9 @@ export interface ChatStore {
   clearQuote: () => void;
   openLightbox: (items: LightboxItem[], index: number) => void;
   closeLightbox: () => void;
+  saveDraft: (convId: string, content: string) => void;
+  clearDraft: (convId: string) => void;
+  loadDrafts: () => void;
   clearHighlightedMessage: () => void;
   addMessage: (message: Message) => void;
   addMessages: (messages: Message[]) => void;

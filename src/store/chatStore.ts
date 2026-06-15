@@ -438,6 +438,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       set({ activeQuote: null });
     }
 
+    // 清除草稿
+    get().clearDraft(activeConversationId);
+
     // 5 秒超时检测
     setTimeout(() => {
       const msgs = get().messagesByConversation[activeConversationId];
@@ -516,6 +519,63 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   openLightbox: (items, index) => set({ lightbox: { items, index } }),
   closeLightbox: () => set({ lightbox: null }),
+
+  /** 保存会话草稿到内存 + localStorage */
+  saveDraft: (convId: string, content: string) => {
+    const trimmed = content.trim();
+    set((state) => ({
+      inputDraft: {
+        ...state.inputDraft,
+        [convId]: trimmed,
+      },
+    }));
+    // 持久化到 localStorage
+    try {
+      const drafts = JSON.parse(localStorage.getItem('message_drafts') || '{}') as Record<string, { content: string; ts: number }>;
+      if (trimmed) {
+        drafts[convId] = { content: trimmed, ts: Date.now() };
+      } else {
+        delete drafts[convId];
+      }
+      localStorage.setItem('message_drafts', JSON.stringify(drafts));
+    } catch { /* ignore */ }
+  },
+
+  /** 清除会话草稿 */
+  clearDraft: (convId: string) => {
+    set((state) => {
+      const drafts = { ...state.inputDraft };
+      delete drafts[convId];
+      return { inputDraft: drafts };
+    });
+    try {
+      const drafts = JSON.parse(localStorage.getItem('message_drafts') || '{}') as Record<string, { content: string; ts: number }>;
+      delete drafts[convId];
+      localStorage.setItem('message_drafts', JSON.stringify(drafts));
+    } catch { /* ignore */ }
+  },
+
+  /** 从 localStorage 恢复草稿（30 天过期自动清理） */
+  loadDrafts: () => {
+    try {
+      const raw = localStorage.getItem('message_drafts');
+      if (!raw) return;
+      const drafts = JSON.parse(raw) as Record<string, { content: string; ts: number }>;
+      const now = Date.now();
+      const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 天
+      const valid: Record<string, string> = {};
+      for (const [convId, entry] of Object.entries(drafts)) {
+        if (now - entry.ts < maxAge && entry.content) {
+          valid[convId] = entry.content;
+        }
+      }
+      set({ inputDraft: valid });
+      // 清理过期数据
+      localStorage.setItem('message_drafts', JSON.stringify(
+        Object.fromEntries(Object.entries(drafts).filter(([, e]) => now - e.ts < maxAge)),
+      ));
+    } catch { /* ignore */ }
+  },
 
   clearHighlightedMessage: () => set({ highlightedMessageId: null }),
 
@@ -934,6 +994,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 }));
 
 // ===================== WebSocket 事件处理 =====================
+// 加载持久化的草稿
+useChatStore.getState().loadDrafts();
+
 // 在模块加载时注册，确保只注册一次
 
 /** 接收新消息：服务端通过 new_msg 推送 */

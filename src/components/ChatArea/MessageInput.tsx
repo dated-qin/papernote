@@ -21,6 +21,9 @@ export const MessageInput: React.FC = () => {
   const conversation = useChatStore((s) => s.getActiveConversation());
   const currentUserId = useChatStore((s) => s.currentUser?.id ?? '');
   const getMembers = useChatStore((s) => s.getMembers);
+  const inputDraft = useChatStore((s) => s.inputDraft);
+  const saveDraft = useChatStore((s) => s.saveDraft);
+  const clearDraft = useChatStore((s) => s.clearDraft);
   const [value, setValue] = useState('');
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -62,16 +65,31 @@ export const MessageInput: React.FC = () => {
     };
   }, [activeConversationId, getMembers]);
 
+  // 切换会话时加载/恢复草稿
+  useEffect(() => {
+    const draft = activeConversationId ? inputDraft[activeConversationId] : '';
+    setValue(draft || '');
+    setMentionOpen(false);
+    setMentionQuery('');
+    setMentionStart(null);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+  // 仅在 activeConversationId 变化时触发
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId]);
+
   const handleSend = useCallback(() => {
     const trimmed = value.trim();
     if (!trimmed) return;
     sendMessage(trimmed, undefined, undefined, 'text', mentionIds);
     setValue('');
     setMentionOpen(false);
+    if (activeConversationId) clearDraft(activeConversationId);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [mentionIds, sendMessage, value]);
+  }, [mentionIds, sendMessage, value, activeConversationId, clearDraft]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (mentionOpen && ['Enter', 'ArrowDown', 'ArrowUp', 'Escape'].includes(e.key)) {
@@ -87,6 +105,8 @@ export const MessageInput: React.FC = () => {
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const nextValue = e.target.value;
     setValue(nextValue);
+    // 实时保存草稿
+    if (activeConversationId) saveDraft(activeConversationId, nextValue);
     const el = e.target;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
