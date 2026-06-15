@@ -357,9 +357,94 @@ export const SettingsPage: React.FC = () => {
               </Field>
             </div>
           </section>
+          <DeviceManager />
         </div>
       </main>
     </div>
+  );
+};
+
+// ============ 设备管理组件 ============
+
+const DeviceManager: React.FC = () => {
+  const [devices, setDevices] = useState<Array<{ device_id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchDevices = async () => {
+    setLoading(true);
+    try {
+      const res = await http.get<{ devices: Array<{ device_id: string; name: string }> }>('/api/users/me/devices');
+      if (res.code === 0) setDevices(res.data.devices ?? []);
+    } catch { /* ignore */ }
+    setLoading(false);
+  };
+
+  useEffect(() => { void fetchDevices(); }, []);
+
+  const handleKick = async (deviceId: string) => {
+    if (!window.confirm('确定要强制下线该设备吗？')) return;
+    const res = await http.delete<Record<string, never>>(`/api/users/me/devices/${encodeURIComponent(deviceId)}`);
+    if (res.code === 0) {
+      setDevices((prev) => prev.filter((d) => d.device_id !== deviceId));
+    }
+  };
+
+  const currentUA = navigator.userAgent;
+
+  return (
+    <section style={{ ...S.section, marginTop: 24 }}>
+      <div style={S.sectionInner}>
+        <p style={S.sectionTitle}>设备管理</p>
+        {loading ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>加载中...</p>
+        ) : devices.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>暂无设备信息</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {devices.map((d) => {
+              const isCurrent = currentUA === d.device_id;
+              return (
+                <div
+                  key={d.device_id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--bg-secondary)',
+                  }}
+                >
+                  <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>
+                    {d.name}
+                    {isCurrent && (
+                      <span style={{ color: 'var(--accent-primary)', fontSize: 12, marginLeft: 8 }}>
+                        (当前设备)
+                      </span>
+                    )}
+                  </span>
+                  {!isCurrent && (
+                    <button
+                      onClick={() => void handleKick(d.device_id)}
+                      style={{
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: 'var(--accent-red)',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--font-family)',
+                      }}
+                    >
+                      强制下线
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
   );
 };
 

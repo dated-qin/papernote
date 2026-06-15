@@ -173,6 +173,34 @@ func (h *Handler) BlockUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
 }
 
+// ---------- GET /api/users/me/devices ----------
+
+func (h *Handler) GetDevices(c *gin.Context) {
+	userID := getInt64FromCtx(c, "user_id")
+	devices, err := h.svc.GetDevices(userID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "获取设备列表失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"devices": devices}})
+}
+
+// ---------- DELETE /api/users/me/devices/:device_id ----------
+
+func (h *Handler) KickDevice(c *gin.Context) {
+	userID := getInt64FromCtx(c, "user_id")
+	deviceID := c.Param("device_id")
+	if deviceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少设备ID"})
+		return
+	}
+	if err := h.svc.KickDevice(userID, deviceID); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
+}
+
 // ---------- helper ----------
 
 func getInt64FromCtx(c *gin.Context, key string) int64 {

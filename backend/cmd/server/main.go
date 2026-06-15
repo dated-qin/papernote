@@ -102,6 +102,8 @@ func main() {
 		{
 			users.GET("/search", userHandler.Search)
 			users.PATCH("/me", userHandler.UpdateMe)
+				users.GET("/me/devices", userHandler.GetDevices)
+				users.DELETE("/me/devices/:device_id", userHandler.KickDevice)
 		}
 		friends := api.Group("/friends")
 		{

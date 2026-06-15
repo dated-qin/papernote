@@ -345,7 +345,43 @@ export const ConversationSidebar: React.FC = () => {
 
       {/* 会话列表 */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-sm) 0' }}>
-        {SECTIONS.map((section) => {
+        {conversations.length === 0 && (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '40px 24px',
+          textAlign: 'center',
+          gap: 12,
+        }}>
+          <span style={{ fontSize: 40 }}>💬</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+            添加好友，开始聊天
+          </span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            在好友页面搜索并添加好友，<br />或创建一个频道开始协作
+          </span>
+          <button
+            onClick={() => navigate('/friends')}
+            style={{
+              marginTop: 4,
+              padding: '8px 20px',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              backgroundColor: 'var(--accent-primary)',
+              color: 'var(--white)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'var(--font-family)',
+            }}
+          >
+            添加好友
+          </button>
+        </div>
+      )}
+      {SECTIONS.map((section) => {
           const items = conversations.filter(section.filter);
           if (items.length === 0) return null;
           const collapsed = section.key === 'pinned' ? false : collapsedSections[section.key];

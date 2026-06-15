@@ -162,10 +162,10 @@ func (s *Service) SendFriendRequest(fromUserID int64, req SendRequestReq) error 
 		return errors.New("已是好友")
 	}
 
-	// 检查是否有待处理请求
+	// 检查是否有未过期的待处理请求（7天内）
 	var pending int64
 	s.db.Model(&FriendRequest{}).
-		Where("from_user_id = ? AND to_user_id = ? AND status = 0", fromUserID, req.ToUserID).
+		Where("from_user_id = ? AND to_user_id = ? AND status = 0 AND created_at > NOW() - INTERVAL '7 days'", fromUserID, req.ToUserID).
 		Count(&pending)
 	if pending > 0 {
 		return errors.New("已有待处理的好友请求")
@@ -280,6 +280,7 @@ func (s *Service) GetFriendRequests(userID int64) ([]FriendRequestResp, error) {
 		Select("fr.*, u.username AS from_username, u.nickname AS from_nickname, u.avatar AS from_avatar").
 		Joins("JOIN users u ON u.id = fr.from_user_id").
 		Where("fr.to_user_id = ?", userID).
+		Where("fr.status != 0 OR (fr.status = 0 AND fr.created_at > NOW() - INTERVAL '7 days')").
 		Order("fr.created_at DESC").
 		Find(&rows).Error
 	if err != nil {
@@ -410,4 +411,77 @@ func (s *Service) isFriend(a, b int64) bool {
 		Where("user_id = ? AND friend_id = ?", a, b).
 		Count(&count)
 	return count > 0
+}
+
+// ---------- 设备管理 ----------
+
+func (s *Service) GetDevices(userID int64) ([]DeviceInfo, error) {
+	ctx := context.Background()
+	key := fmt.Sprintf("user:%d:ws_conns", userID)
+	deviceIDs, err := s.rdb.SMembers(ctx, key).Result()
+	if err != nil {
+		return nil, err
+	}
+	devices := make([]DeviceInfo, 0, len(deviceIDs))
+	for _, id := range deviceIDs {
+		devices = append(devices, DeviceInfo{
+			DeviceID: id,
+			Name:     parseDeviceName(id),
+		})
+	}
+	return devices, nil
+}
+
+func (s *Service) KickDevice(userID int64, deviceID string) error {
+	ctx := context.Background()
+	key := fmt.Sprintf("user:%d:ws_conns", userID)
+
+	// 从 Redis 移除设备
+	if err := s.rdb.SRem(ctx, key, deviceID).Err(); err != nil {
+		return err
+	}
+
+	// 推送 kick 事件给该用户的所有设备（目标设备自行检查 deviceID 匹配）
+	if s.notifier != nil {
+		s.notifier.NotifyUser(userID, "kick", map[string]interface{}{
+			"device_id": deviceID,
+			"reason":    "设备已被强制下线",
+		})
+	}
+	return nil
+}
+
+type DeviceInfo struct {
+	DeviceID string `json:"device_id"`
+	Name     string `json:"name"`
+}
+
+func parseDeviceName(ua string) string {
+	// 简单解析常见 User-Agent
+	if ua == "" {
+		return "未知设备"
+	}
+	if contains(ua, "Electron") || contains(ua, "纸条") {
+		return "桌面客户端"
+	}
+	if contains(ua, "Chrome") || contains(ua, "Chromium") {
+		return "Chrome 浏览器"
+	}
+	if contains(ua, "Firefox") {
+		return "Firefox 浏览器"
+	}
+	if contains(ua, "Safari") && !contains(ua, "Chrome") {
+		return "Safari 浏览器"
+	}
+	if contains(ua, "Edge") {
+		return "Edge 浏览器"
+	}
+	if len(ua) > 24 {
+		return ua[:24] + "…"
+	}
+	return ua
+}
+
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
 }

@@ -16,6 +16,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { FriendsPage } from './pages/FriendsPage';
 import { GroupSettingsPage } from './pages/GroupSettingsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminGuard } from './components/AdminGuard';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { DashboardPage } from './pages/admin/DashboardPage';
@@ -85,6 +86,7 @@ const router = createHashRouter([
       { path: 'logs', element: <OperationLogPage /> },
     ],
   },
+  { path: '*', element: <NotFoundPage /> },
 ]);
 
 // ---------- 渲染 ----------
