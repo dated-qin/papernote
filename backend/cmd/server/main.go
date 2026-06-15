@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 	"github.com/papernote/backend/internal/admin"
@@ -171,6 +173,22 @@ func main() {
 		admin.PUT("/messages/:id/force-recall", adminHandler.ForceRecall)
 		admin.GET("/logs", adminHandler.ListLogs)
 	}
+
+
+		// ===================== 静态文件（前端 SPA） =====================
+		r.Use(func(c *gin.Context) {
+			path := c.Request.URL.Path
+			if len(path) >= 5 && path[:5] == "/api/" {
+				c.Next()
+				return
+			}
+			filePath := filepath.Join("dist", path)
+			if _, err := os.Stat(filePath); err == nil {
+				c.File(filePath)
+				return
+			}
+			c.File("dist/index.html")
+		})
 
 	// ===================== 启动服务 =====================
 	// HTTP API
