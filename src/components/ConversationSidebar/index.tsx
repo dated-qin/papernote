@@ -30,6 +30,7 @@ export const ConversationSidebar: React.FC = () => {
   const createChannel = useChatStore((s) => s.createChannel);
   const togglePin = useChatStore((s) => s.togglePin);
   const toggleMute = useChatStore((s) => s.toggleMute);
+  const deleteConversationLocally = useChatStore((s) => s.deleteConversationLocally);
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [showCreateMenu, setShowCreateMenu] = useState(false);
@@ -420,6 +421,7 @@ export const ConversationSidebar: React.FC = () => {
           y={contextMenu.y}
           onTogglePin={() => void togglePin(contextMenu.conversation.id)}
           onToggleMute={() => void toggleMute(contextMenu.conversation.id)}
+          onDelete={() => deleteConversationLocally(contextMenu.conversation.id)}
           onClose={() => setContextMenu(null)}
         />
       )}

@@ -520,6 +520,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   openLightbox: (items, index) => set({ lightbox: { items, index } }),
   closeLightbox: () => set({ lightbox: null }),
 
+  /** 本地隐藏会话（删除会话入口） */
+  deleteConversationLocally: (convId: string) => {
+    set((state) => ({
+      conversations: state.conversations.filter((c) => c.id !== convId),
+      activeConversationId:
+        state.activeConversationId === convId ? null : state.activeConversationId,
+    }));
+  },
+
   /** 保存会话草稿到内存 + localStorage */
   saveDraft: (convId: string, content: string) => {
     const trimmed = content.trim();

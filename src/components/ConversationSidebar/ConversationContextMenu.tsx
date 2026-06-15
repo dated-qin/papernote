@@ -7,6 +7,7 @@ interface ConversationContextMenuProps {
   y: number;
   onTogglePin: () => void;
   onToggleMute: () => void;
+  onDelete: () => void;
   onClose: () => void;
 }
 
@@ -16,6 +17,7 @@ export const ConversationContextMenu: React.FC<ConversationContextMenuProps> = (
   y,
   onTogglePin,
   onToggleMute,
+  onDelete,
   onClose,
 }) => {
   useEffect(() => {
@@ -55,7 +57,15 @@ export const ConversationContextMenu: React.FC<ConversationContextMenuProps> = (
           }}
         />
         <div style={dividerStyle} />
-        <MenuButton label="删除会话" disabled onClick={() => {}} />
+        <MenuButton
+          label="删除会话"
+          onClick={() => {
+            if (window.confirm(`确定要删除会话「${conversation.name}」吗？\n\n删除后可从会话列表中移除，历史消息仍保留。`)) {
+              onDelete();
+              onClose();
+            }
+          }}
+        />
       </div>
     </>
   );
