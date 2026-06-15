@@ -58,22 +58,34 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
     setShowEmojiPicker(false);
   };
 
-  const bubbleStyle: React.CSSProperties = {
-    backgroundColor: isOwn ? 'var(--msg-own-bg)' : 'var(--msg-other-bg)',
-    borderRadius: isOwn
-      ? 'var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg)'
-      : 'var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm)',
-    padding: 'var(--space-sm) var(--space-md)',
-    maxWidth: '100%',
-    boxShadow: 'var(--shadow-sm)',
-    outline: isHighlighted ? '2px solid var(--accent-primary)' : 'none',
-    outlineOffset: 2,
-    borderLeft: isMentioned ? '3px solid var(--accent-link)' : undefined,
-    position: 'relative',
-    wordBreak: 'break-word',
-    marginBottom: 'var(--space-xs)',
-    transition: 'outline-color 0.2s, background-color 0.2s',
-  };
+  const isRecalled =
+    message.content === '你撤回了一条消息' || message.content === '对方撤回了一条消息';
+
+  const bubbleStyle: React.CSSProperties = isRecalled
+    ? {
+        color: 'var(--text-muted)',
+        fontSize: 'var(--font-size-sm)',
+        fontStyle: 'italic',
+        textAlign: 'center' as const,
+        padding: 'var(--space-xs) 0',
+        marginBottom: 'var(--space-xs)',
+      }
+    : {
+        backgroundColor: isOwn ? 'var(--msg-own-bg)' : 'var(--msg-other-bg)',
+        borderRadius: isOwn
+          ? 'var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg)'
+          : 'var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm)',
+        padding: 'var(--space-sm) var(--space-md)',
+        maxWidth: '100%',
+        boxShadow: 'var(--shadow-sm)',
+        outline: isHighlighted ? '2px solid var(--accent-primary)' : 'none',
+        outlineOffset: 2,
+        borderLeft: isMentioned ? '3px solid var(--accent-link)' : undefined,
+        position: 'relative' as const,
+        wordBreak: 'break-word' as const,
+        marginBottom: 'var(--space-xs)',
+        transition: 'outline-color 0.2s, background-color 0.2s',
+      };
 
   // 发送状态指示
   const statusIndicator = () => {
@@ -108,8 +120,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
         {/* 消息内容（按类型路由） */}
         <MessageContentRouter type={message.type} content={message.content} />
 
-        {/* 消息回应 */}
-        {message.reactions && message.reactions.length > 0 && (
+        {/* 消息回应(撤回消息不显示) */}
+        {!isRecalled && message.reactions && message.reactions.length > 0 && (
           <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
             {message.reactions.map((r) => {
               const isActive = r.userIds.includes(currentUserId);
@@ -141,8 +153,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
 
       {statusIndicator()}
 
-      {/* 悬停操作工具栏 */}
-      {hovered && (
+      {/* 悬停操作工具栏(撤回消息不显示) */}
+      {hovered && !isRecalled && (
         <div
           style={{
             position: 'absolute',
@@ -243,8 +255,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
         </div>
       )}
 
-      {/* 线程回复数预览 */}
-      {message.replyCount !== undefined && message.replyCount > 0 && (
+      {/* 线程回复数预览(撤回消息不显示) */}
+      {!isRecalled && message.replyCount !== undefined && message.replyCount > 0 && (
         <button
           onClick={() => openThread(message.id)}
           style={{
