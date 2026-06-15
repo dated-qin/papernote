@@ -269,6 +269,9 @@ export interface ChatStore {
   updateMessageStatus: (convId: string, msgId: string, status: MessageStatus) => void;
   markAsRead: (convId: string) => void;
   incrementUnread: (convId: string) => void;
+  recallMessage: (msgId: string) => Promise<void>;
+  deleteMessageLocally: (convId: string, msgId: string) => void;
+  forwardMessage: (convId: string, msgId: string, targetConvId: string) => void;
 
   // ---- Reactions ----
   addReaction: (convId: string, msgId: string, emoji: string, userId: string) => void;

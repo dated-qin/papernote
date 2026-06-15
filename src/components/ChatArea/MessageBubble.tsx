@@ -19,6 +19,7 @@ const EMOJI_LIST = ['👍', '❤️', '😂', '🎉', '🔥', '👀'];
 export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) => {
   const [hovered, setHovered] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
 
   const currentUserId = useChatStore((s) => s.currentUser?.id ?? '');
   const addReaction = useChatStore((s) => s.addReaction);
@@ -27,6 +28,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
   const setQuote = useChatStore((s) => s.setQuote);
   const highlightedMessageId = useChatStore((s) => s.highlightedMessageId);
   const clearHighlightedMessage = useChatStore((s) => s.clearHighlightedMessage);
+  const recallMessage = useChatStore((s) => s.recallMessage);
+  const deleteMessageLocally = useChatStore((s) => s.deleteMessageLocally);
+  const forwardMessage = useChatStore((s) => s.forwardMessage);
+  const conversations = useChatStore((s) => s.conversations);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const isHighlighted = highlightedMessageId === message.id;
   const isMentioned =
@@ -171,11 +176,42 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
           >
             ↩
           </ToolbarButton>
-          {/* 更多操作 (占位) */}
-          <ToolbarButton title="更多" onClick={() => {}}>
+          {/* 更多操作 */}
+          <ToolbarButton title="更多" onClick={() => setShowActionsMenu(!showActionsMenu)}>
             ⋯
           </ToolbarButton>
         </div>
+      )}
+
+      {/* 操作菜单 */}
+      {showActionsMenu && (
+        <MessageActionsMenu
+          message={message}
+          isOwn={isOwn}
+          conversationId={message.conversationId}
+          conversations={conversations}
+          onCopy={() => {
+            void navigator.clipboard.writeText(message.content);
+            setShowActionsMenu(false);
+          }}
+          onQuote={() => {
+            setQuote(message.conversationId, message.id);
+            setShowActionsMenu(false);
+          }}
+          onForward={(targetConvId: string) => {
+            forwardMessage(message.conversationId, message.id, targetConvId);
+            setShowActionsMenu(false);
+          }}
+          onRecall={() => {
+            void recallMessage(message.id);
+            setShowActionsMenu(false);
+          }}
+          onDelete={() => {
+            deleteMessageLocally(message.conversationId, message.id);
+            setShowActionsMenu(false);
+          }}
+          onClose={() => setShowActionsMenu(false)}
+        />
       )}
 
       {/* Emoji Picker 弹出 */}
@@ -284,4 +320,185 @@ const statusStyle: React.CSSProperties = {
   fontSize: 12,
   opacity: 0.6,
   flexShrink: 0,
+};
+
+// ============ 消息操作菜单 ============
+
+interface MessageActionsMenuProps {
+  message: Message;
+  isOwn: boolean;
+  conversationId: string;
+  conversations: import('../../types').Conversation[];
+  onCopy: () => void;
+  onQuote: () => void;
+  onForward: (targetConvId: string) => void;
+  onRecall: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}
+
+const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
+  message,
+  isOwn,
+  conversationId,
+  conversations,
+  onCopy,
+  onQuote,
+  onForward,
+  onRecall,
+  onDelete,
+  onClose,
+}) => {
+  const [showForwardList, setShowForwardList] = useState(false);
+  const canRecall = isOwn && message.type === 'text' && message.status !== 'failed';
+  const forwardTargets = conversations.filter((c) => c.id !== conversationId);
+
+  // ESC 关闭
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const menuStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: -32,
+    right: 0,
+    backgroundColor: 'var(--bg-primary)',
+    border: '1px solid var(--border-default)',
+    borderRadius: 'var(--radius-md)',
+    boxShadow: 'var(--shadow-lg)',
+    zIndex: 30,
+    minWidth: 140,
+    padding: '4px 0',
+    overflow: 'hidden',
+  };
+
+  if (showForwardList) {
+    return (
+      <>
+        <div style={backdropStyle} onClick={onClose} />
+        <div style={menuStyle}>
+          <div style={menuHeaderStyle}>
+            <button onClick={() => setShowForwardList(false)} style={backButtonStyle}>← 返回</button>
+            <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)' }}>转发到</span>
+          </div>
+          {forwardTargets.length === 0 ? (
+            <div style={{ padding: '8px 12px', fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
+              没有可转发的会话
+            </div>
+          ) : (
+            forwardTargets.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => onForward(c.id)}
+                style={menuItemStyle}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                {c.type === 'channel' ? '🏠' : '💬'} {c.name}
+              </button>
+            ))
+          )}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div style={backdropStyle} onClick={onClose} />
+      <div style={menuStyle}>
+        {message.type === 'text' && (
+          <button onClick={onCopy} style={menuItemStyle}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+          >
+            📋 复制文本
+          </button>
+        )}
+        <button onClick={onQuote} style={menuItemStyle}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+        >
+          ↩ 引用回复
+        </button>
+        {message.type === 'text' && forwardTargets.length > 0 && (
+          <button onClick={() => setShowForwardList(true)} style={menuItemStyle}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+          >
+            ↗ 转发
+          </button>
+        )}
+        {canRecall && (
+          <>
+            <div style={dividerStyle} />
+            <button onClick={onRecall} style={{ ...menuItemStyle, color: 'var(--accent-red)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              ↩ 撤回
+            </button>
+          </>
+        )}
+        <div style={dividerStyle} />
+        <button onClick={onDelete} style={{ ...menuItemStyle, color: 'var(--text-muted)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+        >
+          🗑 删除（仅本地）
+        </button>
+      </div>
+    </>
+  );
+};
+
+const menuItemStyle: React.CSSProperties = {
+  width: '100%',
+  height: 34,
+  padding: '0 12px',
+  display: 'flex',
+  alignItems: 'center',
+  border: 'none',
+  backgroundColor: 'transparent',
+  color: 'var(--text-primary)',
+  fontSize: 'var(--font-size-sm)',
+  cursor: 'pointer',
+  fontFamily: 'var(--font-family)',
+  whiteSpace: 'nowrap',
+  textAlign: 'left' as const,
+};
+
+const menuHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '4px 12px 8px 12px',
+  borderBottom: '1px solid var(--border-default)',
+  marginBottom: 4,
+};
+
+const backButtonStyle: React.CSSProperties = {
+  border: 'none',
+  backgroundColor: 'transparent',
+  color: 'var(--accent-link)',
+  fontSize: 'var(--font-size-sm)',
+  cursor: 'pointer',
+  padding: 0,
+  fontFamily: 'var(--font-family)',
+};
+
+const backdropStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 29,
+};
+
+const dividerStyle: React.CSSProperties = {
+  height: 1,
+  backgroundColor: 'var(--border-default)',
+  margin: '4px 0',
 };

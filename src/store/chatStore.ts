@@ -602,6 +602,36 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
   },
 
+  /** 撤回消息：PUT /api/messages/:id/recall（2分钟限制） */
+  recallMessage: async (msgId: string): Promise<void> => {
+    const res = await http.put<Record<string, never>>(`/api/messages/${msgId}/recall`);
+    if (res.code !== 0) {
+      throw new Error(res.message as string ?? '撤回失败');
+    }
+  },
+
+  /** 本地删除消息：仅从当前会话的消息列表中移除 */
+  deleteMessageLocally: (convId: string, msgId: string) => {
+    set((state) => ({
+      messagesByConversation: {
+        ...state.messagesByConversation,
+        [convId]: (state.messagesByConversation[convId] ?? []).filter((m) => m.id !== msgId),
+      },
+    }));
+  },
+
+  /** 转发消息：向目标会话发送相同内容 */
+  forwardMessage: (convId: string, msgId: string, targetConvId: string) => {
+    const { messagesByConversation } = get();
+    const msgs = messagesByConversation[convId];
+    if (!msgs) return;
+    const msg = msgs.find((m) => m.id === msgId);
+    if (!msg) return;
+    // 切换到目标会话后再发送（sendMessage 使用 activeConversationId）
+    get().setActiveConversation(targetConvId);
+    get().sendMessage(`[转发] ${msg.content}`, undefined, undefined, msg.type);
+  },
+
   // ===================== 好友 Actions =====================
 
   /** 搜索用户：GET /api/users/search?q= */
