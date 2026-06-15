@@ -19,6 +19,7 @@ type Service struct {
 
 type UserNotifier interface {
 	NotifyUser(userID int64, action string, data map[string]interface{})
+	NotifyConversation(convID int64, action string, data map[string]interface{})
 }
 
 func NewService(db *gorm.DB, rdb *redis.Client, notifier ...UserNotifier) *Service {
@@ -84,7 +85,30 @@ func (s *Service) UpdateMe(userID int64, req UpdateMeReq) error {
 	if len(updates) == 0 {
 		return errors.New("无更新字段")
 	}
-	return s.db.Model(&User{}).Where("id = ?", userID).Updates(updates).Error
+	if err := s.db.Model(&User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+		return err
+	}
+
+	// 资料变更后，向该用户参与的所有会话推送 profile_updated 事件
+	if s.notifier != nil {
+		user, err := s.getUser(userID)
+		if err != nil {
+			return nil // 更新已成功，推送失败不影响主流程
+		}
+		var convIDs []int64
+		s.db.Table("conversation_members").
+			Select("conversation_id").
+			Where("user_id = ?", userID).
+			Pluck("conversation_id", &convIDs)
+		for _, convID := range convIDs {
+			s.notifier.NotifyConversation(convID, "profile_updated", map[string]interface{}{
+				"user_id":  userID,
+				"nickname": user.Nickname,
+				"avatar":   user.Avatar,
+			})
+		}
+	}
+	return nil
 }
 
 // ---------- 好友列表 ----------

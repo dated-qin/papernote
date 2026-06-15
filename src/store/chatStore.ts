@@ -1061,6 +1061,61 @@ wsClient.on('friend_request_result', (env) => {
   }
 });
 
+// ---------- profile_updated：资料变更实时同步 ----------
+wsClient.on('profile_updated', (env) => {
+  const data = env.data as Record<string, unknown>;
+  const userId = String(data.user_id ?? '');
+  const nickname = (data.nickname as string) ?? '';
+  const avatar = (data.avatar as string) ?? '';
+  if (!userId) return;
+
+  const store = useChatStore.getState();
+  const old = store.users[userId];
+
+  useChatStore.setState((state) => ({
+    users: {
+      ...state.users,
+      [userId]: {
+        ...(state.users[userId] ?? { id: userId, username: '', nickname: '', avatarUrl: '', status: 'offline' }),
+        nickname,
+        avatarUrl: avatar,
+      },
+    },
+  }));
+
+  // 如果信息确实有变化，更新关联数据
+  if (old && old.nickname !== nickname) {
+    // 更新好友列表
+    useChatStore.setState((state) => ({
+      friends: state.friends.map((f) =>
+        f.userId === userId ? { ...f, nickname, avatarUrl: avatar } : f,
+      ),
+    }));
+
+    // 更新 DM 会话的 name / avatarUrl（以对方昵称/头像命名）
+    useChatStore.setState((state) => ({
+      conversations: state.conversations.map((c) => {
+        if (c.type !== 'dm') return c;
+        // 检查该 DM 的成员是否包含此用户
+        if (!c.memberIds?.includes(userId)) return c;
+        return { ...c, name: nickname, avatarUrl: avatar };
+      }),
+    }));
+  } else if (old && old.avatarUrl !== avatar) {
+    // 仅头像变化：更新好友列表和 DM 会话头像
+    useChatStore.setState((state) => ({
+      friends: state.friends.map((f) =>
+        f.userId === userId ? { ...f, avatarUrl: avatar } : f,
+      ),
+      conversations: state.conversations.map((c) => {
+        if (c.type !== 'dm') return c;
+        if (!c.memberIds?.includes(userId)) return c;
+        return { ...c, avatarUrl: avatar };
+      }),
+    }));
+  }
+});
+
 // ---------- 桌面通知点击：显示主窗口并跳转到对应会话 ----------
 if (isElectron() && window.electronAPI) {
   window.electronAPI.onNotificationClick(() => {

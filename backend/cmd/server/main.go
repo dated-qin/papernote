@@ -211,6 +211,10 @@ func (n *wsUserNotifier) NotifyUser(userID int64, action string, data map[string
 	n.hub.SendToUser(userID, ws.Envelope{Action: action, Data: data})
 }
 
+func (n *wsUserNotifier) NotifyConversation(convID int64, action string, data map[string]interface{}) {
+	n.hub.BroadcastToConversation(convID, ws.Envelope{Action: action, Data: data})
+}
+
 type wsGroupNotifier struct {
 	hub *ws.Hub
 }
