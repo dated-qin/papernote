@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { MessageContentRouter } from './MessageFile';
 import { QuotePreview } from './QuotePreview';
+import { EmojiPicker } from './EmojiPicker';
 import type { Message } from '../../types';
 
 interface MessageBubbleProps {
@@ -14,7 +15,6 @@ interface MessageBubbleProps {
   isOwn: boolean;
 }
 
-const EMOJI_LIST = ['👍', '❤️', '😂', '🎉', '🔥', '👀'];
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) => {
   const [hovered, setHovered] = useState(false);
@@ -219,40 +219,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn }) 
         <div
           style={{
             position: 'absolute',
-            top: -72,
+            top: -40,
             [isOwn ? 'left' : 'right']: 0,
-            display: 'flex',
-            gap: 4,
-            backgroundColor: 'var(--bg-primary)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-md)',
-            padding: 'var(--space-sm)',
-            boxShadow: 'var(--shadow-md)',
             zIndex: 20,
           }}
         >
-          {EMOJI_LIST.map((emoji) => (
-            <button
-              key={emoji}
-              onClick={() => handleReaction(emoji)}
-              style={{
-                fontSize: 18,
-                border: 'none',
-                backgroundColor: 'transparent',
-                cursor: 'pointer',
-                padding: 2,
-                borderRadius: 'var(--radius-sm)',
-              }}
-              onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)';
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.backgroundColor = 'transparent';
-              }}
-            >
-              {emoji}
-            </button>
-          ))}
+          <EmojiPicker
+            recentKey="reaction"
+            onSelect={(emoji) => handleReaction(emoji)}
+            onClose={() => setShowEmojiPicker(false)}
+          />
         </div>
       )}
 

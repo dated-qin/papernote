@@ -8,6 +8,7 @@ import { useChatStore } from '../../store/chatStore';
 import { IconButton } from '../common';
 import { MentionPicker, type MentionOption } from './MentionPicker';
 import { QuotePreview } from './QuotePreview';
+import { EmojiPicker } from './EmojiPicker';
 import { uploadFile } from '../../utils/upload';
 import { MAX_FILE_SIZE } from '../../utils/fileUtils';
 import type { GroupMember } from '../../types';
@@ -28,6 +29,7 @@ export const MessageInput: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   // 上传状态
   const [uploading, setUploading] = useState(false);
@@ -209,11 +211,35 @@ export const MessageInput: React.FC = () => {
           display: 'flex',
           gap: 'var(--space-sm)',
           marginBottom: 'var(--space-sm)',
+          position: 'relative',
         }}
       >
-        <IconButton title="表情" size={32}>
+        <IconButton title="表情" size={32} onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
           😊
         </IconButton>
+        {showEmojiPicker && (
+          <EmojiPicker
+            recentKey="input"
+            onSelect={(emoji) => {
+              const el = textareaRef.current;
+              if (el) {
+                const start = el.selectionStart;
+                const end = el.selectionEnd;
+                const before = value.slice(0, start);
+                const after = value.slice(end);
+                const newValue = before + emoji + after;
+                setValue(newValue);
+                // 光标定位到插入内容之后
+                requestAnimationFrame(() => {
+                  el.selectionStart = el.selectionEnd = start + emoji.length;
+                  el.focus();
+                });
+              }
+              setShowEmojiPicker(false);
+            }}
+            onClose={() => setShowEmojiPicker(false)}
+          />
+        )}
         <IconButton title="@提及" size={32} onClick={openMentionPicker}>
           @
         </IconButton>
