@@ -120,13 +120,39 @@ func (h *Handler) GetFileURL(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.svc.GetFileURL(fileID)
+	// 支持 ?expire=N 参数控制过期时间（秒）
+	expireSec := int64(3600)
+	if s := c.Query("expire"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil && n > 0 && n <= 86400 {
+			expireSec = n
+		}
+	}
+
+	url, err := h.svc.GetFileRawURL(fileID, expireSec)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "data": resp})
+	c.Redirect(http.StatusFound, url)
+}
+
+// ---------- GET /api/files/:id/thumbnail ----------
+
+func (h *Handler) GetThumbnail(c *gin.Context) {
+	fileID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的文件ID"})
+		return
+	}
+
+	url, err := h.svc.GetFileRawURL(fileID, 3600) // 缩略图与主图同 URL，OSS 可通过参数处理
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": err.Error()})
+		return
+	}
+
+	c.Redirect(http.StatusFound, url)
 }
 
 func safeLocalKey(key string) (string, bool) {

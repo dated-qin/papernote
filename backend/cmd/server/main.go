@@ -154,6 +154,7 @@ func main() {
 			files.POST("/upload-token", fileHandler.GetUploadToken)
 			files.POST("/upload-callback", fileHandler.UploadCallback)
 			files.GET("/:id/url", fileHandler.GetFileURL)
+				files.GET("/:id/thumbnail", fileHandler.GetThumbnail)
 		}
 	}
 

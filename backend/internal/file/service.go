@@ -82,16 +82,23 @@ func (s *Service) UploadCallback(userID int64, req UploadCallbackReq) (*UploadCa
 // ---------- 获取文件访问 URL ----------
 
 func (s *Service) GetFileURL(fileID int64) (*FileURLResp, error) {
+	url, err := s.GetFileRawURL(fileID, 3600)
+	if err != nil {
+		return nil, err
+	}
+	return &FileURLResp{URL: url, ExpiresIn: 3600}, nil
+}
+
+// GetFileRawURL 返回原始签名字符串（供 handler 做 302 重定向）
+func (s *Service) GetFileRawURL(fileID int64, expireSec int64) (string, error) {
 	var f File
 	if err := s.db.First(&f, fileID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("文件不存在")
+			return "", errors.New("文件不存在")
 		}
-		return nil, err
+		return "", err
 	}
-
-	url := s.oss.GenerateAccessURL(f.OSSKey, 3600)
-	return &FileURLResp{URL: url, ExpiresIn: 3600}, nil
+	return s.oss.GenerateAccessURL(f.OSSKey, expireSec), nil
 }
 
 // ---------- helpers ----------
