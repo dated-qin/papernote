@@ -81,7 +81,9 @@ export const MessageList: React.FC = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(messages.length);
   const isLoadingMore = useRef(false);
+  const hasMore = useRef(true);
   const firstLoad = useRef(true);
+  const oldestIdRef = useRef('');
 
   const blocks = groupMessages(messages);
 
@@ -99,6 +101,14 @@ export const MessageList: React.FC = () => {
     prevLengthRef.current = messages.length;
   }, [messages.length, isNearBottom]);
 
+  // 切换会话时重置状态
+  useEffect(() => {
+    hasMore.current = true;
+    oldestIdRef.current = '';
+    firstLoad.current = true;
+    isLoadingMore.current = false;
+  }, [activeConversationId]);
+
   // 初始加载滚到底部
   useEffect(() => {
     if (firstLoad.current && messages.length > 0) {
@@ -110,22 +120,23 @@ export const MessageList: React.FC = () => {
   // 向上滚动加载更早消息
   const handleScroll = useCallback(() => {
     const el = listRef.current;
-    if (!el || isLoadingMore.current) return;
-    // 滚动到顶部附近时加载更多
-    if (el.scrollTop < 100) {
+    if (!el || isLoadingMore.current || !hasMore.current) return;
+    if (el.scrollTop <= 0 && messages.length > 0) {
       const oldest = messages[0];
-      if (oldest && activeConversationId) {
+      if (oldest && oldest.id !== oldestIdRef.current && activeConversationId) {
+        oldestIdRef.current = oldest.id;
         isLoadingMore.current = true;
-        const prevHeight = el.scrollHeight;
+        const prevLen = messages.length;
         void fetchHistory(activeConversationId, oldest.id).finally(() => {
-          // 加载完成后保持滚动位置
-          requestAnimationFrame(() => {
-            if (el) {
-              el.scrollTop = el.scrollHeight - prevHeight;
-            }
-            isLoadingMore.current = false;
-          });
+          isLoadingMore.current = false;
+          const fresh = useChatStore.getState().getActiveMessages();
+          if (fresh.length === prevLen) {
+            hasMore.current = false;
+          }
         });
+      } else {
+        // 同一批消息没有再请求，已到底
+        hasMore.current = false;
       }
     }
   }, [messages, activeConversationId, fetchHistory]);
