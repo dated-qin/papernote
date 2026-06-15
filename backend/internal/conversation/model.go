@@ -48,6 +48,7 @@ type ListItem struct {
 	Pinned      bool     `json:"pinned"`
 	UpdatedAt   string   `json:"updated_at"`
 	LastMessage *LastMsg `json:"last_message,omitempty"`
+	MemberIDs   []int64  `json:"member_ids"`
 }
 
 type LastMsg struct {

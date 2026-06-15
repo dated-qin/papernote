@@ -74,6 +74,30 @@ func (s *Service) List(userID int64, q ListQuery) ([]ListItem, error) {
 		}
 		items[i] = item
 	}
+
+		// 批量填充 member_ids
+		if len(items) > 0 {
+			convIDs := make([]int64, len(items))
+			for i, item := range items {
+				convIDs[i] = item.ID
+			}
+			type memberRow struct {
+				ConvID int64 `gorm:"column:conversation_id"`
+				UserID int64 `gorm:"column:user_id"`
+			}
+			var members []memberRow
+			s.db.Table("conversation_members").
+				Select("conversation_id, user_id").
+				Where("conversation_id IN ?", convIDs).
+				Find(&members)
+			memberMap := make(map[int64][]int64)
+			for _, m := range members {
+				memberMap[m.ConvID] = append(memberMap[m.ConvID], m.UserID)
+			}
+			for i := range items {
+				items[i].MemberIDs = memberMap[items[i].ID]
+			}
+		}
 	return items, nil
 }
 
