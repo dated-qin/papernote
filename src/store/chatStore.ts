@@ -219,7 +219,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   // ===================== 用户缓存 Actions =====================
 
-  setCurrentUser: (user: User) => set({ currentUser: user }),
+  setCurrentUser: (user: User) =>
+    set((state) => ({
+      currentUser: user,
+      users: { ...state.users, [user.id]: user },
+    })),
 
   setUsers: (users: User[]) => {
     const map: Record<string, User> = {};
@@ -1252,8 +1256,9 @@ wsClient.on('profile_updated', (env) => {
     },
   }));
 
-  // 如果信息确实有变化，更新关联数据
-  if (old && old.nickname !== nickname) {
+  // 如果信息确实有变化，更新关联数据（仅当变更是其他人的资料时，不更新自己）
+  const isSelf = userId === store.currentUser?.id;
+  if (!isSelf && old && old.nickname !== nickname) {
     // 更新好友列表
     useChatStore.setState((state) => ({
       friends: state.friends.map((f) =>
@@ -1265,12 +1270,11 @@ wsClient.on('profile_updated', (env) => {
     useChatStore.setState((state) => ({
       conversations: state.conversations.map((c) => {
         if (c.type !== 'dm') return c;
-        // 检查该 DM 的成员是否包含此用户
         if (!c.memberIds?.includes(userId)) return c;
         return { ...c, name: nickname, avatarUrl: avatar };
       }),
     }));
-  } else if (old && old.avatarUrl !== avatar) {
+  } else if (!isSelf && old && old.avatarUrl !== avatar) {
     // 仅头像变化：更新好友列表和 DM 会话头像
     useChatStore.setState((state) => ({
       friends: state.friends.map((f) =>
