@@ -54,7 +54,8 @@ export class WsClient {
     this.manualClose = false;
     const connectionId = ++this.connectionId;
     this.emit('connecting', { action: 'connecting', data: {} });
-    this.ws = new WebSocket(`${this.url}?token=${token}`);
+    const wsUrl = this.url || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`;
+    this.ws = new WebSocket(`${wsUrl}?token=${token}`);
 
     this.ws.onopen = () => {
       this.reconnectDelay = 1000;
@@ -157,5 +158,5 @@ export class WsClient {
 
 /** 全局单例 WebSocket 客户端 */
 export const wsClient = new WsClient(
-  import.meta.env.VITE_WS_URL || 'ws://localhost:8081/ws',
+  import.meta.env.VITE_WS_URL || '',
 );

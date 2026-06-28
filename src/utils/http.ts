@@ -18,7 +18,7 @@ export interface ApiResponse<T = unknown> {
 
 // ---------- 创建 Axios 实例 ----------
 const instance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || 'http://localhost:8080',
+  baseURL: import.meta.env.VITE_API_BASE || '',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
