@@ -6,7 +6,6 @@
 import React, { useEffect, useCallback } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { type LightboxItem } from './Lightbox';
-import http from '../../utils/http';
 import { getFileIcon, formatFileSize, formatDuration } from '../../utils/fileUtils';
 
 // ---------- 文件内容解析类型 ----------
@@ -50,6 +49,14 @@ interface MessageImageProps {
   content: string;
 }
 
+/** 优先用 file_id 构造 API 路径，兼容旧消息中的签名 URL */
+function resolveUrl(data: { file_id?: string; url: string }): string {
+  return data.file_id ? `/api/files/${data.file_id}/url` : data.url;
+}
+function resolveThumb(data: { file_id?: string; thumbnail_url?: string; url: string }): string {
+  return data.file_id ? `/api/files/${data.file_id}/thumbnail` : (data.thumbnail_url || data.url);
+}
+
 export const MessageImage: React.FC<MessageImageProps> = ({ content }) => {
   const data = parseContent<ImageContent>(content);
   const openLightbox = useChatStore((s) => s.openLightbox);
@@ -57,28 +64,26 @@ export const MessageImage: React.FC<MessageImageProps> = ({ content }) => {
 
   if (!data) return <span style={{ color: 'var(--text-muted)' }}>[图片加载失败]</span>;
 
-  const src = data.thumbnail_url || data.url;
+  const src = resolveThumb(data);
 
   const handleClick = () => {
-    // 收集当前会话中所有图片/视频
     const items: LightboxItem[] = [];
     let clickedIndex = 0;
-    // 遍历所有会话的消息（实际上我们只知道当前文件的内容，需要从store获取）
+    const currentUrl = resolveUrl(data);
     for (const msgs of Object.values(messagesByConversation)) {
       for (const msg of msgs) {
         const parsed = parseContent<ImageContent | VideoContent>(msg.content);
         if (!parsed) continue;
         if (msg.type === 'image') {
           const img = parsed as ImageContent;
-          items.push({ url: img.url, thumbnailUrl: img.thumbnail_url, type: 'image' });
+          items.push({ url: resolveUrl(img), thumbnailUrl: resolveThumb(img), type: 'image' });
         } else if (msg.type === 'video') {
           const vid = parsed as VideoContent;
-          items.push({ url: vid.url, thumbnailUrl: vid.thumbnail_url, type: 'video' });
+          items.push({ url: resolveUrl(vid), thumbnailUrl: resolveThumb(vid), type: 'video' });
         }
       }
     }
-    // 找到当前点击的索引
-    clickedIndex = items.findIndex((item) => item.url === data.url);
+    clickedIndex = items.findIndex((item) => item.url === currentUrl);
     if (clickedIndex === -1) clickedIndex = 0;
     openLightbox(items, clickedIndex);
   };
@@ -113,23 +118,26 @@ export const MessageVideo: React.FC<MessageVideoProps> = ({ content }) => {
 
   if (!data) return <span style={{ color: 'var(--text-muted)' }}>[视频加载失败]</span>;
 
+  const posterSrc = resolveThumb(data);
+
   const handleClick = () => {
     const items: LightboxItem[] = [];
     let clickedIndex = 0;
+    const currentUrl = resolveUrl(data);
     for (const msgs of Object.values(messagesByConversation)) {
       for (const msg of msgs) {
         const parsed = parseContent<ImageContent | VideoContent>(msg.content);
         if (!parsed) continue;
         if (msg.type === 'image') {
           const img = parsed as ImageContent;
-          items.push({ url: img.url, thumbnailUrl: img.thumbnail_url, type: 'image' });
+          items.push({ url: resolveUrl(img), thumbnailUrl: resolveThumb(img), type: 'image' });
         } else if (msg.type === 'video') {
           const vid = parsed as VideoContent;
-          items.push({ url: vid.url, thumbnailUrl: vid.thumbnail_url, type: 'video' });
+          items.push({ url: resolveUrl(vid), thumbnailUrl: resolveThumb(vid), type: 'video' });
         }
       }
     }
-    clickedIndex = items.findIndex((item) => item.url === data.url);
+    clickedIndex = items.findIndex((item) => item.url === currentUrl);
     if (clickedIndex === -1) clickedIndex = 0;
     openLightbox(items, clickedIndex);
   };
@@ -140,7 +148,7 @@ export const MessageVideo: React.FC<MessageVideoProps> = ({ content }) => {
       onClick={handleClick}
     >
       <img
-        src={data.thumbnail_url || data.url}
+        src={posterSrc}
         style={{
           width: '100%',
           borderRadius: 'var(--radius-sm)',
@@ -205,17 +213,8 @@ export const MessageFileCard: React.FC<MessageFileCardProps> = ({ content }) => 
   if (!data) return <span style={{ color: 'var(--text-muted)' }}>[文件加载失败]</span>;
 
   const handleDownload = () => {
-    // 通过 API 获取签名 URL 后下载
-    http
-      .get<{ url: string }>(`/api/files/${data.file_id}/url`)
-      .then((res) => {
-        if (res.code === 0 && res.data.url) {
-          window.open(res.data.url, '_blank');
-        }
-      })
-      .catch(() => {
-        alert('获取下载链接失败');
-      });
+    // 直接打开 API 端点，浏览器跟随 302 重定向到 OSS 签名 URL
+    window.open(`/api/files/${data.file_id}/url`, '_blank');
   };
 
   return (

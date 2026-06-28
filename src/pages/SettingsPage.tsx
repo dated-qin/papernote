@@ -208,7 +208,8 @@ export const SettingsPage: React.FC = () => {
     setProfileError('');
     try {
       const result = await uploadFile(file);
-      setAvatar(result.url);
+      // 存储 API 端点路径（永久有效），不存 OSS 签名 URL（1h 过期）
+      setAvatar(`/api/files/${result.fileId}/url`);
     } catch (e) {
       setProfileError(e instanceof Error ? e.message : '头像上传失败');
     } finally {

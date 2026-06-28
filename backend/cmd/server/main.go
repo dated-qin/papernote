@@ -81,6 +81,9 @@ func main() {
 	r.Use(middleware.CORS())
 	r.POST("/api/files/local-upload", fileHandler.LocalUpload)
 	r.GET("/api/files/local/*key", fileHandler.ServeLocal)
+	// 文件访问端点公开（<img>/<video> 标签无 Authorization header）
+	r.GET("/api/files/:id/url", fileHandler.GetFileURL)
+	r.GET("/api/files/:id/thumbnail", fileHandler.GetThumbnail)
 
 	// ===================== 公开路由 =====================
 	authGroup := r.Group("/api/auth")
@@ -155,8 +158,6 @@ func main() {
 		{
 			files.POST("/upload-token", fileHandler.GetUploadToken)
 			files.POST("/upload-callback", fileHandler.UploadCallback)
-			files.GET("/:id/url", fileHandler.GetFileURL)
-				files.GET("/:id/thumbnail", fileHandler.GetThumbnail)
 		}
 	}
 

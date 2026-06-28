@@ -50,7 +50,8 @@ func (q *QiniuOSS) GenerateUploadToken(key string) (string, string) {
 func (q *QiniuOSS) GenerateAccessURL(key string, expireSec int64) string {
 	deadline := time.Now().Unix() + expireSec
 	url := fmt.Sprintf("https://%s/%s?e=%d", q.Endpoint, key, deadline)
-	token := q.sign(url)
+	// 下载凭证格式: AccessKey:EncodedSign（上传凭证是 AccessKey:Sign:EncodedPolicy）
+	token := fmt.Sprintf("%s:%s", q.AccessKey, q.sign(url))
 	return url + "&token=" + token
 }
 

@@ -186,18 +186,18 @@ export const MessageInput: React.FC = () => {
         const isImage = file.type.startsWith('image/');
         const isVideo = file.type.startsWith('video/');
 
+        // 消息 content 只存 file_id + API 端点路径，不存签名 URL
+        // 浏览器加载时 <img src="/api/files/:id/url"> → 后端实时签名 → 永不过期
         const fileData: Record<string, unknown> = {
           file_id: result.fileId,
           file_name: file.name,
           file_size: file.size,
           mime_type: file.type,
-          url: result.url,
+          url: `/api/files/${result.fileId}/url`,
         };
 
-        if (isVideo) {
+        if (isVideo || isImage) {
           fileData.thumbnail_url = `/api/files/${result.fileId}/thumbnail`;
-        } else if (isImage) {
-          fileData.thumbnail_url = result.url;
         }
 
         // 发送文件消息
