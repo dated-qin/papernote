@@ -10,7 +10,8 @@ import { MentionPicker, type MentionOption } from './MentionPicker';
 import { QuotePreview } from './QuotePreview';
 import { EmojiPicker } from './EmojiPicker';
 import { uploadFile } from '../../utils/upload';
-import { MAX_FILE_SIZE } from '../../utils/fileUtils';
+import { wsClient } from '../../utils/ws';
+import { MAX_FILE_SIZE, apiUrl } from '../../utils/fileUtils';
 import type { GroupMember } from '../../types';
 
 export const MessageInput: React.FC = () => {
@@ -32,6 +33,7 @@ export const MessageInput: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingLastRef = useRef<number>(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   // 上传状态
@@ -107,6 +109,14 @@ export const MessageInput: React.FC = () => {
     setValue(nextValue);
     // 实时保存草稿
     if (activeConversationId) saveDraft(activeConversationId, nextValue);
+    // 发送正在输入事件（节流 2 秒）
+    if (activeConversationId) {
+      const now = Date.now();
+      if (!typingLastRef.current || now - typingLastRef.current > 2000) {
+        typingLastRef.current = now;
+        wsClient.send('typing', { conversation_id: activeConversationId });
+      }
+    }
     const el = e.target;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
@@ -193,11 +203,11 @@ export const MessageInput: React.FC = () => {
           file_name: file.name,
           file_size: file.size,
           mime_type: file.type,
-          url: `/api/files/${result.fileId}/url`,
+          url: apiUrl(`/api/files/${result.fileId}/url`),
         };
 
         if (isVideo || isImage) {
-          fileData.thumbnail_url = `/api/files/${result.fileId}/thumbnail`;
+          fileData.thumbnail_url = apiUrl(`/api/files/${result.fileId}/thumbnail`);
         }
 
         // 发送文件消息

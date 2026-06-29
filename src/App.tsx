@@ -13,11 +13,11 @@ import { ChatArea } from './components/ChatArea';
 import { ThreadPanel } from './components/ThreadPanel';
 import { FilesPanel } from './components/FilesPanel';
 import { StatusBar } from './components/StatusBar';
+import { SiteFooter } from './components/SiteFooter';
 import { SearchDialog } from './components/SearchDialog';
 
 export const App: React.FC = () => {
   const theme = useChatStore((s) => s.theme);
-  const setTheme = useChatStore((s) => s.setTheme);
   const fetchConversations = useChatStore((s) => s.fetchConversations);
   const wsStatus = useChatStore((s) => s.wsStatus);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -31,10 +31,6 @@ export const App: React.FC = () => {
     fetchConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const toggleTheme = () => {
-    setTheme(theme === 'light' ? 'dark' : 'light');
-  };
 
   const openSearch = useCallback((conversationId?: string) => {
     setSearchScopeId(conversationId ?? null);
@@ -69,37 +65,6 @@ export const App: React.FC = () => {
         backgroundColor: 'var(--bg-primary)',
       }}
     >
-      {/* 主题切换快捷键（开发用） */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 30,
-          right: 16,
-          zIndex: 1000,
-        }}
-      >
-        <button
-          onClick={toggleTheme}
-          title="切换主题"
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 'var(--radius-full)',
-            border: '1px solid var(--border-default)',
-            backgroundColor: 'var(--bg-primary)',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer',
-            fontSize: 16,
-            boxShadow: 'var(--shadow-md)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {theme === 'light' ? '🌙' : '☀️'}
-        </button>
-      </div>
-
       <TitleBar />
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
@@ -110,6 +75,7 @@ export const App: React.FC = () => {
       </div>
 
       <StatusBar connectionStatus={wsStatus} lastSync="刚刚" />
+      <SiteFooter />
 
       <SearchDialog
         open={searchOpen}

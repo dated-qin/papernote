@@ -114,7 +114,8 @@ export const DashboardPage: React.FC = () => {
     // 消息趋势 — 折线图
     if (msgChartRef.current) {
       const chart = echarts.init(msgChartRef.current);
-      const dates = data.message_trend.map((d) => d.date.slice(5));
+      const trend = data.message_trend || [];
+      const dates = trend.map((d) => d.date.slice(5));
       chart.setOption({
         tooltip: { trigger: 'axis' },
         legend: { data: ['单聊', '群聊'], textStyle: { color: '#8B7355' } },
@@ -125,14 +126,14 @@ export const DashboardPage: React.FC = () => {
           {
             name: '单聊',
             type: 'line',
-            data: data.message_trend.map((d) => d.dm),
+            data: trend.map((d) => d.dm),
             smooth: true,
             itemStyle: { color: '#F49B3E' },
           },
           {
             name: '群聊',
             type: 'line',
-            data: data.message_trend.map((d) => d.channel),
+            data: trend.map((d) => d.channel),
             smooth: true,
             itemStyle: { color: '#7BA86E' },
           },
@@ -147,7 +148,8 @@ export const DashboardPage: React.FC = () => {
     if (!data) return;
     if (activeChartRef.current) {
       const chart = echarts.init(activeChartRef.current);
-      const dates = data.active_trend.map((d) => d.date.slice(5));
+      const activeTrend = data.active_trend || [];
+      const dates = activeTrend.map((d) => d.date.slice(5));
       chart.setOption({
         tooltip: { trigger: 'axis' },
         grid: { left: 40, right: 16, top: 16, bottom: 24 },
@@ -156,7 +158,7 @@ export const DashboardPage: React.FC = () => {
         series: [
           {
             type: 'bar',
-            data: data.active_trend.map((d) => d.dau),
+            data: activeTrend.map((d) => d.dau),
             itemStyle: { color: '#F49B3E', borderRadius: [4, 4, 0, 0] },
           },
         ],

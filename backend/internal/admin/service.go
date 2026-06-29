@@ -34,7 +34,10 @@ func (s *Service) GetDashboard() (*DashboardData, error) {
 		}
 	}
 
-	data := &DashboardData{}
+	data := &DashboardData{
+		MessageTrend: []TrendPoint{},
+		ActiveTrend:  []DAUPoint{},
+	}
 
 	// 核心指标
 	s.db.Raw("SELECT COUNT(*) FROM users WHERE status = 0").Scan(&data.TotalUsers)

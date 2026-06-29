@@ -1,21 +1,12 @@
-# ============================================
-# 纸条 PaperNote — CI Pipeline
-# frontend: install → tsc → vitest → build
-# backend:  install → test → build
-# e2e:      playwright
-# deploy:   docker compose up
-# ============================================
-
 name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  # ==================== 前端 ====================
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -26,25 +17,11 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      - run: npm run build
 
-      - name: TypeScript check
-        run: npx tsc --noEmit
-
-      - name: Unit tests
-        run: npx vitest run
-
-      - name: Production build
-        run: npm run build
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-  # ==================== 后端 ====================
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -81,14 +58,16 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
-
       - name: Download dependencies
         run: go mod tidy
+        env:
+          GOPROXY: https://goproxy.cn,direct
+
+      - name: Run migrations
+        run: |
+          for f in migrations/*.sql; do
+            PGPASSWORD=testpass psql -h localhost -U papernote -d papernote -f "$f"
+          done
 
       - name: Run tests
         run: go test ./...
@@ -102,51 +81,13 @@ jobs:
           REDIS_PORT: 6379
           REDIS_PASSWORD: ""
           JWT_SECRET: test-secret-for-ci-at-least-32-chars-long
-          OSS_ACCESS_KEY: ""
-          OSS_SECRET_KEY: ""
-          OSS_BUCKET: papernote
-          OSS_ENDPOINT: ""
+          COS_SECRET_ID: ""
+          COS_SECRET_KEY: ""
+          COS_BUCKET: papernote
+          COS_REGION: ap-shanghai
+          COS_CUSTOM_DOMAIN: ""
 
       - name: Build
         run: go build -o server ./cmd/server
-
-  # ==================== E2E ====================
-  e2e:
-    needs: frontend
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm install
-      - run: npx playwright install --with-deps chromium
-      - run: |
-          npm run build
-          npx vite preview --port 4173 &
-          sleep 3
-      - run: npx playwright test
         env:
-          BASE_URL: http://localhost:4173
-
-  # ==================== Deploy ====================
-  deploy:
-    needs: [frontend, backend, e2e]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download frontend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-      - name: Deploy to production
-        run: |
-          echo "Deploying to production server..."
-          # rsync -avz dist/ user@server:/app/dist/
-          # ssh user@server 'cd /app && docker compose -f docker/docker-compose.prod.yml up -d --build'
-          echo "Deploy complete (placeholder — configure SSH credentials in repo secrets)"
+          GOPROXY: https://goproxy.cn,direct

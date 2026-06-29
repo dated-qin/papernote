@@ -1375,6 +1375,27 @@ wsClient.on('reaction_updated', (env) => {
   });
 });
 
+// ---------- user_online：好友上下线通知 ----------
+wsClient.on('user_online', (env) => {
+  const data = env.data as Record<string, unknown>;
+  const userId = String(data.user_id ?? '');
+  const online = data.online as boolean;
+  if (!userId) return;
+
+  useChatStore.setState((state) => ({
+    friends: state.friends.map((f) =>
+      f.userId === userId ? { ...f, online } : f,
+    ),
+    users: {
+      ...state.users,
+      [userId]: {
+        ...(state.users[userId] ?? { id: userId, username: '', nickname: '', avatarUrl: '', status: 'offline' }),
+        status: online ? 'online' : 'offline',
+      },
+    },
+  }));
+});
+
 // ---------- 桌面通知点击：显示主窗口并跳转到对应会话 ----------
 if (isElectron() && window.electronAPI) {
   window.electronAPI.onNotificationClick(() => {
