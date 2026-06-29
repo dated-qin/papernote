@@ -59,9 +59,8 @@ export async function uploadFile(
     xhr.onerror = () => reject(new Error('网络错误'));
 
     if (!token) {
-      // COS: 预签名 PUT URL
+      // COS: 预签名 PUT URL（不设 Content-Type，避免签名校验失败）
       xhr.open('PUT', upload_url);
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
       xhr.send(file);
     } else {
       // 七牛: FormData POST
