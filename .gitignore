@@ -8,3 +8,6 @@ docs/
 prompts/
 *.jpg
 *.png
+SecretKey.csv
+*.pem
+dist/
