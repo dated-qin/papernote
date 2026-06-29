@@ -11,6 +11,8 @@ prompts/
 !assets/*.png
 !assets/*.ico
 !assets/*.icns
+!public/*.png
+!public/images/*.png
 SecretKey.csv
 *.pem
 dist/
