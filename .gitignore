@@ -8,6 +8,9 @@ docs/
 prompts/
 *.jpg
 *.png
+!assets/*.png
+!assets/*.ico
+!assets/*.icns
 SecretKey.csv
 *.pem
 dist/

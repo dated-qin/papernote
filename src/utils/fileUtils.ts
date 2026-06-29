@@ -48,3 +48,17 @@ export function formatDuration(seconds: number): string {
 
 /** 最大上传文件大小（100MB） */
 export const MAX_FILE_SIZE = 100 * 1024 * 1024;
+
+// ---------- API 路径前缀 ----------
+// 桌面端构建时注入 VITE_API_BASE，Web 端保持相对路径
+
+/**
+ * 为 API 路径自动添加 baseURL 前缀（桌面端需要，Web 端保持相对路径）
+ * 已是绝对 URL（http/wss:// 开头）则直接返回，避免重复拼接
+ * 用法: apiUrl('/api/files/123/url') → 'https://qingliu.tech/api/files/123/url' 或 '/api/files/123/url'
+ */
+export function apiUrl(path: string): string {
+  const base = import.meta.env.VITE_API_BASE || '';
+  if (!base || /^https?:\/\//i.test(path)) return path;
+  return `${base}${path}`;
+}

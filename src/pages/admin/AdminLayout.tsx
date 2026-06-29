@@ -11,6 +11,7 @@ import {
   UserOutlined,
   TeamOutlined,
   FileTextOutlined,
+  HomeOutlined,
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
@@ -58,6 +59,20 @@ export const AdminLayout: React.FC = () => {
             backgroundColor: 'transparent',
             borderRight: 'none',
             color: 'var(--text-secondary)',
+            flex: 1,
+          }}
+        />
+        {/* 返回主页 */}
+        <Menu
+          mode="inline"
+          selectable={false}
+          items={[{ key: 'home', icon: <HomeOutlined />, label: '返回主页' }]}
+          onClick={() => navigate('/')}
+          style={{
+            backgroundColor: 'transparent',
+            borderRight: 'none',
+            color: 'var(--text-secondary)',
+            borderTop: '1px solid var(--border-default)',
           }}
         />
       </Sider>

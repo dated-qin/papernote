@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useChatStore } from '../../store/chatStore';
+import { apiUrl } from '../../utils/fileUtils';
 import type { Message } from '../../types';
 
 type FileTab = 'all' | 'image' | 'video' | 'file';
@@ -38,23 +39,23 @@ function extractFileItems(messages: Message[]): FileItem[] {
         messageId: msg.id,
         type: 'image',
         name: (parsed.name as string) || '图片',
-        url: parsed.url as string,
-        thumbnailUrl: (parsed.thumbnail_url as string) || (parsed.url as string),
+        url: apiUrl(parsed.url as string),
+        thumbnailUrl: apiUrl((parsed.thumbnail_url as string) || (parsed.url as string)),
       });
     } else if (msg.type === 'video' && parsed.url) {
       items.push({
         messageId: msg.id,
         type: 'video',
         name: (parsed.name as string) || '视频',
-        url: parsed.url as string,
-        thumbnailUrl: (parsed.thumbnail_url as string) || (parsed.url as string),
+        url: apiUrl(parsed.url as string),
+        thumbnailUrl: apiUrl((parsed.thumbnail_url as string) || (parsed.url as string)),
       });
     } else if (msg.type === 'file' && parsed.url) {
       items.push({
         messageId: msg.id,
         type: 'file',
         name: (parsed.name as string) || '文件',
-        url: parsed.url as string,
+        url: apiUrl(parsed.url as string),
         size: parsed.size as number | undefined,
       });
     }

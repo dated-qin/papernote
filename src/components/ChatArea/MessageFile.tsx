@@ -6,7 +6,7 @@
 import React, { useEffect, useCallback } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { type LightboxItem } from './Lightbox';
-import { getFileIcon, formatFileSize, formatDuration } from '../../utils/fileUtils';
+import { getFileIcon, formatFileSize, formatDuration, apiUrl } from '../../utils/fileUtils';
 
 // ---------- 文件内容解析类型 ----------
 
@@ -51,10 +51,10 @@ interface MessageImageProps {
 
 /** 优先用 file_id 构造 API 路径，兼容旧消息中的签名 URL */
 function resolveUrl(data: { file_id?: string; url: string }): string {
-  return data.file_id ? `/api/files/${data.file_id}/url` : data.url;
+  return data.file_id ? apiUrl(`/api/files/${data.file_id}/url`) : data.url;
 }
 function resolveThumb(data: { file_id?: string; thumbnail_url?: string; url: string }): string {
-  return data.file_id ? `/api/files/${data.file_id}/thumbnail` : (data.thumbnail_url || data.url);
+  return data.file_id ? apiUrl(`/api/files/${data.file_id}/thumbnail`) : (data.thumbnail_url || data.url);
 }
 
 export const MessageImage: React.FC<MessageImageProps> = ({ content }) => {
@@ -214,7 +214,7 @@ export const MessageFileCard: React.FC<MessageFileCardProps> = ({ content }) => 
 
   const handleDownload = () => {
     // 直接打开 API 端点，浏览器跟随 302 重定向到 OSS 签名 URL
-    window.open(`/api/files/${data.file_id}/url`, '_blank');
+    window.open(apiUrl(`/api/files/${data.file_id}/url`), '_blank');
   };
 
   return (

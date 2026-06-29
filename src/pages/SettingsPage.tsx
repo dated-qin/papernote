@@ -5,6 +5,7 @@ import { Avatar } from '../components/common';
 import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
 import http from '../utils/http';
+import { apiUrl } from '../utils/fileUtils';
 import { uploadFile } from '../utils/upload';
 import type { User } from '../types';
 
@@ -209,7 +210,7 @@ export const SettingsPage: React.FC = () => {
     try {
       const result = await uploadFile(file);
       // 存储 API 端点路径（永久有效），不存 OSS 签名 URL（1h 过期）
-      setAvatar(`/api/files/${result.fileId}/url`);
+      setAvatar(apiUrl(`/api/files/${result.fileId}/url`));
     } catch (e) {
       setProfileError(e instanceof Error ? e.message : '头像上传失败');
     } finally {

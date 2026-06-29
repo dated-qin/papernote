@@ -6,10 +6,6 @@
 import React from 'react';
 import { isElectron } from '../../utils/platform';
 
-// Electron 专有 CSS 属性
-const dragStyle = { WebkitAppRegion: 'drag' } as React.CSSProperties;
-const noDragStyle = { WebkitAppRegion: 'no-drag' } as React.CSSProperties;
-
 export const TitleBar: React.FC = () => {
   // Web 端不显示 TitleBar（浏览器自带标题栏）
   if (!isElectron()) return null;
@@ -22,6 +18,7 @@ export const TitleBar: React.FC = () => {
 
   return (
     <div
+      className="titlebar-drag"
       style={{
         height: 28,
         backgroundColor: 'var(--bg-secondary)',
@@ -31,7 +28,6 @@ export const TitleBar: React.FC = () => {
         padding: '0 var(--space-sm)',
         flexShrink: 0,
         borderBottom: '1px solid var(--border-default)',
-        ...dragStyle,
         userSelect: 'none',
       }}
     >
@@ -47,10 +43,10 @@ export const TitleBar: React.FC = () => {
 
       {/* 窗口控制按钮（仅 Electron 环境显示） */}
       <div
+        className="titlebar-no-drag"
         style={{
           display: 'flex',
           gap: 0,
-          ...noDragStyle,
         }}
       >
         <WinButton symbol="─" onClick={handleMinimize} />

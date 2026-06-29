@@ -3,6 +3,14 @@
    暖色双主题：light / dark，通过 data-theme 切换
    ============================================ */
 
+/* ---------- Electron 无边框窗口拖拽 ---------- */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 /* ---------- 亮色主题（默认） ---------- */
 :root,
 [data-theme="light"] {
