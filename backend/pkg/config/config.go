@@ -26,11 +26,16 @@ type Config struct {
 	JWTSecret      string
 	JWTExpireHours int
 
-	// OSS
-	OSSAccessKey string
-	OSSSecretKey string
-	OSSBucket    string
-	OSSEndpoint  string
+	// OSS / COS
+	OSSAccessKey    string
+	OSSSecretKey    string
+	OSSBucket       string
+	OSSEndpoint     string
+	COSSecretID     string
+	COSSecretKey    string
+	COSBucket       string
+	COSRegion       string
+	COSCustomDomain string
 
 	// 端口
 	Port   int
@@ -77,12 +82,17 @@ func Load() *Config {
 		RedisPassword:  getEnv("REDIS_PASSWORD", ""),
 		JWTSecret:      requireEnv("JWT_SECRET"),
 		JWTExpireHours: getIntEnv("JWT_EXPIRE_HOURS", 24),
-		OSSAccessKey:   getEnv("OSS_ACCESS_KEY", ""),
-		OSSSecretKey:   getEnv("OSS_SECRET_KEY", ""),
-		OSSBucket:      getEnv("OSS_BUCKET", "papernote"),
-		OSSEndpoint:    getEnv("OSS_ENDPOINT", ""),
-		Port:           getIntEnv("PORT", 8080),
-		WSPort:         getIntEnv("WS_PORT", 8081),
+		OSSAccessKey:    getEnv("OSS_ACCESS_KEY", ""),
+		OSSSecretKey:    getEnv("OSS_SECRET_KEY", ""),
+		OSSBucket:       getEnv("OSS_BUCKET", "papernote"),
+		OSSEndpoint:     getEnv("OSS_ENDPOINT", ""),
+		COSSecretID:     getEnv("COS_SECRET_ID", ""),
+		COSSecretKey:    getEnv("COS_SECRET_KEY", ""),
+		COSBucket:       getEnv("COS_BUCKET", "papernote-1443300859"),
+		COSRegion:       getEnv("COS_REGION", "ap-shanghai"),
+		COSCustomDomain: getEnv("COS_CUSTOM_DOMAIN", ""),
+		Port:            getIntEnv("PORT", 8080),
+		WSPort:          getIntEnv("WS_PORT", 8081),
 	}
 
 	// JWT Secret 长度校验

@@ -146,7 +146,7 @@ func (h *Handler) GetThumbnail(c *gin.Context) {
 		return
 	}
 
-	url, err := h.svc.GetFileRawURL(fileID, 3600) // 缩略图与主图同 URL，OSS 可通过参数处理
+	url, err := h.svc.GetFileRawURL(fileID, 3600)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": err.Error()})
 		return

@@ -41,15 +41,9 @@ export async function uploadFile(
   if (tokenRes.code !== 0) throw new Error(tokenRes.message || '获取上传凭证失败');
   const { upload_url, token, key } = tokenRes.data;
 
-  // 2. 直传 OSS（XHR 带进度）
-  const formData = new FormData();
-  formData.append('token', token);
-  formData.append('key', key);
-  formData.append('file', file);
-
+  // 2. 直传 COS（预签名 PUT）或 OSS（FormData POST）
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', upload_url);
 
     xhr.upload.onprogress = (e: ProgressEvent) => {
       if (e.lengthComputable && onProgress) {
@@ -63,7 +57,21 @@ export async function uploadFile(
     };
 
     xhr.onerror = () => reject(new Error('网络错误'));
-    xhr.send(formData);
+
+    if (!token) {
+      // COS: 预签名 PUT URL
+      xhr.open('PUT', upload_url);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.send(file);
+    } else {
+      // 七牛: FormData POST
+      xhr.open('POST', upload_url);
+      const formData = new FormData();
+      formData.append('token', token);
+      formData.append('key', key);
+      formData.append('file', file);
+      xhr.send(formData);
+    }
   });
 
   // 3. 上传完成回调 → 获取 file_id + 访问 URL

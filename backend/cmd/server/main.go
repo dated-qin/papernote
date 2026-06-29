@@ -50,8 +50,8 @@ func main() {
 	msgSvc := message.NewService(database, rdb)
 
 	var ossClient file.OSSClient
-	if cfg.OSSAccessKey != "" && cfg.OSSSecretKey != "" {
-		ossClient = file.NewQiniuOSS(cfg.OSSAccessKey, cfg.OSSSecretKey, cfg.OSSBucket, cfg.OSSEndpoint)
+	if cfg.COSSecretID != "" && cfg.COSSecretKey != "" {
+		ossClient = file.NewTencentCOS(cfg.COSSecretID, cfg.COSSecretKey, cfg.COSBucket, cfg.COSRegion, cfg.COSCustomDomain)
 	} else {
 		ossClient = file.NewLocalOSS()
 	}
